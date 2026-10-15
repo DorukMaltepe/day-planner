@@ -5,6 +5,9 @@ services:
       - "8000:8000"
     volumes:
       - planner-data:/data
+    env_file:  # SMTP settings for emailing the calendar export; .env is gitignored
+      - path: .env
+        required: false
     restart: unless-stopped
 
 volumes:

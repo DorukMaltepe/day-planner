@@ -1,8 +1,10 @@
 import csv
 import os
 import re
+import smtplib
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
+from email.message import EmailMessage
 
 from flask import Flask, abort, g, jsonify, request
 
@@ -131,9 +133,21 @@ CREATE TABLE IF NOT EXISTS tasks (
   kind TEXT NOT NULL,  -- 'plan' (to-do, optional time), 'goal' or 'workout' (the program's session, timed)
   title TEXT NOT NULL,
   time TEXT,           -- HH:MM
-  done INTEGER NOT NULL DEFAULT 0
+  done INTEGER NOT NULL DEFAULT 0,
+  type_id INTEGER REFERENCES event_types(id) ON DELETE SET NULL,
+  link TEXT,           -- meeting link, for types with has_link
+  location TEXT,       -- for types with has_location
+  minutes INTEGER,     -- event length: from the end time, or a workout's estimate; without it an hour
+  notes TEXT           -- details for the calendar export, e.g. a workout's exercises
 );
 CREATE INDEX IF NOT EXISTS tasks_day ON tasks(day);
+CREATE TABLE IF NOT EXISTS event_types (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  color TEXT NOT NULL,  -- #rrggbb
+  has_link INTEGER NOT NULL DEFAULT 0,
+  has_location INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS program (
   id INTEGER PRIMARY KEY CHECK (id = 1),  -- one active program at a time
   name TEXT NOT NULL,                     -- program id from static/programs.js
@@ -158,6 +172,17 @@ def init_db():
     conn = sqlite3.connect(DB_PATH)
     with conn:
         conn.executescript(SCHEMA)
+        # older databases lack these task columns
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(tasks)")}
+        for col, decl in [("type_id", "INTEGER REFERENCES event_types(id) ON DELETE SET NULL"),
+                          ("link", "TEXT"), ("location", "TEXT"), ("minutes", "INTEGER"), ("notes", "TEXT")]:
+            if col not in cols:
+                conn.execute(f"ALTER TABLE tasks ADD COLUMN {col} {decl}")
+        # default types only into an empty table, so ones the user deleted stay deleted (unless all are)
+        if not conn.execute("SELECT 1 FROM event_types").fetchone():
+            conn.executemany("INSERT INTO event_types (name, color, has_link, has_location) VALUES (?, ?, ?, ?)", [
+                ("Daily chore", "#3aa76d", 0, 0), ("Work", "#2f6fde", 1, 0),
+                ("School", "#8b5cf6", 0, 1), ("Social", "#e0457b", 0, 1)])
         # OR IGNORE: re-running on every start adds new rows from foods.csv without touching existing ones
         with open(os.path.join(HERE, "foods.csv"), newline="", encoding="utf-8") as f:
             conn.executemany(
@@ -186,6 +211,8 @@ def close_db(_):
 @app.errorhandler(400)
 @app.errorhandler(404)
 @app.errorhandler(409)
+@app.errorhandler(502)
+@app.errorhandler(503)
 def error(e):
     return jsonify(error=e.description), e.code
 
@@ -288,7 +315,9 @@ def get_day(day):
     measurements = [dict(r) for r in db().execute(
         "SELECT id, kind, value FROM measurements WHERE day = ? ORDER BY id", (day,))]
     tasks = [dict(r) for r in db().execute(
-        "SELECT id, kind, title, time, done FROM tasks WHERE day = ? ORDER BY time IS NULL, time, id", (day,))]
+        "SELECT t.id, t.kind, t.title, t.time, t.done, t.type_id, t.link, t.location, t.minutes, e.name AS type, e.color "
+        "FROM tasks t LEFT JOIN event_types e ON e.id = t.type_id "
+        "WHERE t.day = ? ORDER BY t.time IS NULL, t.time, t.id", (day,))]
     totals = {k: round(sum(m[k] for m in meals), 1) for k in NUTRIENTS}
     base = base_burn()
     burned = sum(a["kcal"] for a in activities)
@@ -315,10 +344,13 @@ def get_month(month):
           UNION ALL
           SELECT day, 0, 0, 0, 0, 0, 1, 0 FROM sets WHERE day LIKE ?
         ) GROUP BY day""", (month + "-%",) * 4)
+    colors = dict(db().execute("SELECT t.day, GROUP_CONCAT(DISTINCT e.color) FROM tasks t "
+                               "JOIN event_types e ON e.id = t.type_id WHERE t.day LIKE ? GROUP BY t.day", (month + "-%",)))
     return jsonify({r["day"]: {"eaten": round(r["eaten"]), "done": r["done"],
                                "net": round(r["eaten"] - base - r["burned"]),
                                "tasks": r["tasks"], "tasks_done": r["tasks_done"], "sets": r["sets"],
-                               "workouts": r["workouts"]} for r in rows})
+                               "workouts": r["workouts"],
+                               "colors": colors[r["day"]].split(",") if r["day"] in colors else []} for r in rows})
 
 
 @app.post("/api/meals")
@@ -374,19 +406,65 @@ def add_task():
         abort(400, "kind must be plan, goal or workout")
     if time is not None and not (isinstance(time, str) and re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", time)):
         abort(400, "time must be HH:MM")
-    with db() as conn:
-        cur = conn.execute("INSERT INTO tasks (day, kind, title, time) VALUES (?, ?, ?, ?)",
-                           (valid_day(d.get("day")), kind, text(d, "title"), time))
+    link = d.get("link") or None
+    # the link is rendered as an href, so only http(s) gets through (no javascript: URLs)
+    if link is not None and not (isinstance(link, str) and len(link) <= 500 and re.fullmatch(r"https?://\S+", link)):
+        abort(400, "link must be an http:// or https:// URL")
+    location = text(d, "location") if d.get("location") else None
+    type_id = int(num(d, "type_id")) if d.get("type_id") is not None else None
+    minutes = d.get("minutes")
+    if minutes is not None and not (isinstance(minutes, int) and not isinstance(minutes, bool) and 1 <= minutes <= 1440):
+        abort(400, "minutes must be a whole number from 1 to 1440")
+    notes = d.get("notes") or None
+    if notes is not None and not (isinstance(notes, str) and len(notes) <= 4000):
+        abort(400, "notes must be text (max 4000 chars)")
+    try:
+        with db() as conn:
+            cur = conn.execute("INSERT INTO tasks (day, kind, title, time, type_id, link, location, minutes, notes) "
+                               "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                               (valid_day(d.get("day")), kind, text(d, "title"), time, type_id, link, location, minutes, notes))
+    except sqlite3.IntegrityError:
+        abort(400, "unknown type_id")
+    return jsonify(id=cur.lastrowid), 201
+
+
+@app.get("/api/event_types")
+def list_event_types():
+    return jsonify([dict(r) for r in db().execute("SELECT * FROM event_types ORDER BY id")])
+
+
+@app.post("/api/event_types")
+def add_event_type():
+    d = payload()
+    color = d.get("color")
+    if not (isinstance(color, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", color)):  # it goes into a style attribute
+        abort(400, "color must look like #1a2b3c")
+    try:
+        with db() as conn:
+            cur = conn.execute("INSERT INTO event_types (name, color, has_link, has_location) VALUES (?, ?, ?, ?)",
+                               (text(d, "name"), color, bool(d.get("has_link")), bool(d.get("has_location"))))
+    except sqlite3.IntegrityError:
+        abort(409, "an event type with that name already exists")
     return jsonify(id=cur.lastrowid), 201
 
 
 @app.patch("/api/tasks/<int:task_id>")
 def update_task(task_id):
-    done = payload().get("done")
-    if not isinstance(done, bool):
-        abort(400, "done must be true or false")
-    with db() as conn:
-        if not conn.execute("UPDATE tasks SET done = ? WHERE id = ?", (done, task_id)).rowcount:
+    """Tick a task off ({done}) or move it to another start time ({time})."""
+    d, fields = payload(), {}
+    if "done" in d:
+        if not isinstance(d["done"], bool):
+            abort(400, "done must be true or false")
+        fields["done"] = d["done"]
+    if "time" in d:
+        if not (isinstance(d["time"], str) and re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", d["time"])):
+            abort(400, "time must be HH:MM")
+        fields["time"] = d["time"]
+    if not fields:
+        abort(400, "send done or time")
+    with db() as conn:  # column names come from the fixed keys above, not from the request
+        if not conn.execute(f"UPDATE tasks SET {', '.join(k + ' = ?' for k in fields)} WHERE id = ?",
+                            (*fields.values(), task_id)).rowcount:
             abort(404, "no such task")
     return "", 204
 
@@ -401,16 +479,48 @@ def export_day(day):
     valid_day(day)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//day-planner//EN"]
-    for t in db().execute("SELECT id, title, time FROM tasks WHERE day = ? AND time IS NOT NULL ORDER BY time", (day,)):
+    for t in db().execute("SELECT t.id, t.title, t.time, t.link, t.location, t.minutes, t.notes, e.name AS type "
+                          "FROM tasks t LEFT JOIN event_types e ON e.id = t.type_id "
+                          "WHERE t.day = ? AND t.time IS NOT NULL ORDER BY t.time", (day,)):
         start = datetime.fromisoformat(f"{day}T{t['time']}")
-        end = start + timedelta(hours=1)  # shortcut: tasks have no duration, so every event lasts an hour; add one if that's often wrong
+        end = start + timedelta(minutes=t["minutes"] or 60)
         # floating local times (no Z or TZID): the phone shows them in its own time zone
         lines += ["BEGIN:VEVENT", f"UID:task-{t['id']}@day-planner", f"DTSTAMP:{stamp}",
-                  f"DTSTART:{start:%Y%m%dT%H%M%S}", f"DTEND:{end:%Y%m%dT%H%M%S}", f"SUMMARY:{ics_text(t['title'])}", "END:VEVENT"]
+                  f"DTSTART:{start:%Y%m%dT%H%M%S}", f"DTEND:{end:%Y%m%dT%H%M%S}", f"SUMMARY:{ics_text(t['title'])}"]
+        if t["location"]:
+            lines.append(f"LOCATION:{ics_text(t['location'])}")
+        if t["link"]:
+            lines.append(f"URL:{t['link']}")
+        # everything again in the notes too: Google Calendar ignores URL, and some apps hide LOCATION
+        details = [f"Type: {t['type']}" if t["type"] else None, f"Location: {t['location']}" if t["location"] else None,
+                   f"Meeting link: {t['link']}" if t["link"] else None, t["notes"]]
+        if any(details):
+            lines.append(f"DESCRIPTION:{ics_text(chr(10).join(x for x in details if x))}")
+        lines.append("END:VEVENT")
     lines.append("END:VCALENDAR")
     # shortcut: long lines aren't folded at 75 octets as RFC 5545 asks; Apple and Google Calendar read them anyway
     return app.response_class("\r\n".join(lines) + "\r\n", mimetype="text/calendar",
                               headers={"Content-Disposition": f'inline; filename="plan-{day}.ics"'})
+
+
+@app.post("/api/calendar/<day>/email")
+def email_day(day):
+    """Mails the day's .ics to MAIL_TO; iPhone Mail offers Add All on the attachment."""
+    host, user, password = (os.environ.get(k) for k in ("SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD"))
+    if not (host and user and password):
+        abort(503, "email isn't set up: set SMTP_HOST, SMTP_USER and SMTP_PASSWORD")
+    msg = EmailMessage()
+    msg["From"], msg["To"], msg["Subject"] = user, os.environ.get("MAIL_TO", user), f"Day plan {day}"
+    msg.set_content("Open the attachment and tap Add All to put the day in your calendar.")
+    msg.add_attachment(export_day(day).get_data(), maintype="text", subtype="calendar", filename=f"plan-{day}.ics")
+    try:
+        with smtplib.SMTP(host, int(os.environ.get("SMTP_PORT", 587)), timeout=20) as s:
+            s.starttls()
+            s.login(user, password)
+            s.send_message(msg)
+    except (smtplib.SMTPException, OSError) as e:
+        abort(502, f"couldn't send the email: {e}")
+    return "", 204
 
 
 @app.get("/api/program")
@@ -512,7 +622,7 @@ def measurement_history():
     return jsonify([dict(r) for r in rows])
 
 
-@app.delete("/api/<any(meals, activities, sets, measurements, tasks):table>/<int:row_id>")
+@app.delete("/api/<any(meals, activities, sets, measurements, tasks, event_types):table>/<int:row_id>")
 def delete_entry(table, row_id):
     with db() as conn:  # table name is safe: restricted by the URL converter
         conn.execute(f"DELETE FROM {table} WHERE id = ?", (row_id,))

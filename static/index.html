@@ -9,13 +9,18 @@
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --paper: #f2f5f4; --surface: #fff; --ink: #17231f; --muted: #5a6863; --line: #d8e0dd;
-    --under: #0b7a6b; --over: #9e5f06; --bar: #a9b6b1;
+    --paper: #ecebe8; --surface: #f7f6f4; --ink: #1d1d1f; --muted: #67676c; --line: #d9d7d3; --bar: #b5b3ae;
+    --accent: var(--ink); --on-accent: var(--surface);
+    /* calendar colors; --on-color is text on a solid fill */
+    --red: #c93f3f; --blue: #3165cc; --green: #23824a; --orange: #b85a0d; --on-color: #fff;
+    --under: var(--green); --over: var(--red);
+    --brand-a: #6a3df0; --brand-b: #f0428b;
     --display: "Bricolage Grotesque", system-ui, sans-serif;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --paper: #111816; --surface: #18211e; --ink: #e6edea; --muted: #97a6a0; --line: #2b3632;
-            --under: #4cc9b3; --over: #f0ae4a; --bar: #4a5853; }
+    :root { --paper: #161617; --surface: #1f1f21; --ink: #ececec; --muted: #9a9a9f; --line: #2f2f32;
+            --bar: #4a4a4f; --red: #f06b6b; --blue: #6f9bff; --green: #52c785; --orange: #ff9f4a; --on-color: #161617;
+            --brand-a: #a084ff; --brand-b: #ff6fa8; }
   }
   * { box-sizing: border-box; }
   body { margin: 0; font: 15px/1.5 "IBM Plex Sans", system-ui, sans-serif; background: var(--paper); color: var(--ink);
@@ -24,18 +29,19 @@
   h1 { font-size: clamp(22px, 3.4vw, 30px); }
   h2 { font-size: 20px; }
   [hidden] { display: none !important; }
-  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .muted { color: var(--muted); font-size: 13px; }
   .under { color: var(--under); } .over { color: var(--over); }
   .wrap { max-width: 1240px; margin: 0 auto; padding-left: 20px; padding-right: 20px; }
 
   /* header, tabs, day bar */
   .top .wrap { display: flex; align-items: center; gap: 32px; padding-top: 14px; }
-  .brand { font-size: 19px; font-weight: 800; }
+  .brand { font-size: 19px; font-weight: 800; color: var(--brand-a);
+           background: linear-gradient(90deg, var(--brand-a), var(--brand-b)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
   .tabs { display: flex; gap: 4px; }
   .tabs a { padding: 10px 14px; color: var(--muted); text-decoration: none; font-weight: 500; border-radius: 8px; }
   .tabs a:hover { color: var(--ink); background: var(--surface); }
-  .tabs a[aria-current="page"] { color: var(--ink); background: var(--surface); box-shadow: inset 0 -2px 0 var(--ink); }
+  .tabs a[aria-current="page"] { color: var(--accent); background: var(--surface); box-shadow: inset 0 -3px 0 var(--accent); }
   .daybar { position: sticky; top: 0; z-index: 5; background: var(--paper); border-bottom: 1px solid var(--line); }
   .daybar .wrap { display: flex; align-items: center; gap: 8px; padding-top: 12px; padding-bottom: 12px; }
   .daybar h1 { margin: 0 6px; }
@@ -49,7 +55,7 @@
     .tabs { position: fixed; z-index: 10; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(3, 1fr);
             gap: 0; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
     .tabs a { padding: 18px 0; text-align: center; border-radius: 0; }
-    .tabs a[aria-current="page"] { box-shadow: inset 0 2px 0 var(--ink); font-weight: 600; }
+    .tabs a[aria-current="page"] { box-shadow: inset 0 3px 0 var(--accent); font-weight: 600; }
     .daybar .wrap { gap: 6px; }
     .daybar h1 { margin: 0 2px; font-size: 19px; }
     .daybar .long { display: none; } .daybar .short { display: inline; }
@@ -74,10 +80,10 @@
                   border: 1px solid var(--line); border-radius: 8px; }
   input:hover, select:hover { border-color: var(--bar); }
   button { cursor: pointer; min-height: 40px; padding: 0 16px; border-radius: 8px; font-weight: 600;
-           border: 1px solid var(--ink); background: var(--ink); color: var(--surface); }
+           border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent); }
   button:hover { opacity: .85; }
   button.quiet { background: transparent; color: var(--ink); border-color: var(--line); }
-  button.quiet:hover { opacity: 1; border-color: var(--ink); }
+  button.quiet:hover { opacity: 1; border-color: var(--accent); color: var(--accent); }
   button.del { min-height: 32px; width: 32px; padding: 0; border: 0; background: none; color: var(--muted);
                font-weight: 400; border-radius: 6px; flex: none; }
   button.del:hover { opacity: 1; color: var(--over); background: var(--paper); }
@@ -90,7 +96,8 @@
   }
 
   /* panels */
-  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 28px; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 28px;
+           box-shadow: 0 1px 3px rgb(0 0 0 / .06); }
   .panel > section + section { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--line); }
   @media (max-width: 600px) { .panel { padding: 20px 16px; border-radius: 12px; } }
   .intro { margin: 4px 0 0; }
@@ -108,42 +115,68 @@
   .cell .kc { font-size: 11px; color: var(--muted); }
   .cell.all .kc { color: var(--ink); font-weight: 600; }
   .cell .meter { position: absolute; left: 6px; right: 6px; bottom: 5px; height: 3px; border-radius: 2px; background: var(--line); }
-  .cell .meter i { display: block; height: 100%; border-radius: 2px; background: var(--ink); }
-  .cell.today .n { text-decoration: underline 2px; text-underline-offset: 3px; }
+  .cell .meter i { display: block; height: 100%; border-radius: 2px; background: var(--green); }
+  .cell.today .n { color: var(--red); text-decoration: underline 2px; text-underline-offset: 3px; }
   .cell .todo { position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--over); }
-  .cell.sel { outline: 2px solid var(--ink); outline-offset: 1px; }
-  .cell.wk { background: color-mix(in oklab, var(--ink) 9%, var(--surface)); }
+  .cell.sel { outline: 2px solid var(--blue); outline-offset: 1px; }
+  .cell.wk { background: color-mix(in oklab, var(--orange) 18%, var(--surface)); }
   .cell.wk .kc { color: var(--ink); font-weight: 600; }
-  .cell.logged, .cell.logged .kc { background: var(--ink); color: var(--surface); }
+  /* workout names wrap to two lines in the narrow sports column, so cells grow taller than square */
+  #sport-grid .cell { aspect-ratio: auto; min-height: 64px; }
+  #sport-grid .kc { line-height: 1.2; }
+  .cell.logged, .cell.logged .kc { background: var(--green); color: var(--on-color); }
+  .cell .types { display: flex; flex-wrap: wrap; gap: 2px; }
+  .cell .types i, .tdot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .tdot { width: 10px; height: 10px; }
   .legend { margin: 12px 0 0; }
 
   /* plan and goals */
   .progress-line { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
   .progress-line strong { font-family: var(--display); font-size: 26px; font-weight: 700; }
   .meter-lg { height: 8px; border-radius: 4px; background: var(--paper); margin-top: 12px; overflow: hidden; }
-  .meter-lg i { display: block; height: 100%; background: var(--ink); transition: width .3s ease; }
+  .meter-lg i { display: block; height: 100%; background: var(--green); transition: width .3s ease; }
   .check { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; cursor: pointer; padding: 4px 0; }
-  .check input { width: 20px; height: 20px; min-height: 0; margin: 0; flex: none; accent-color: var(--ink); cursor: pointer; }
+  .check input { width: 20px; height: 20px; min-height: 0; margin: 0; flex: none; accent-color: var(--accent); cursor: pointer; }
   .check .time { font-size: 13px; color: var(--muted); min-width: 42px; }
   .check.done .title { text-decoration: line-through; color: var(--muted); }
+  .check .meta { display: block; font-size: 13px; color: var(--muted); }
+  .btn-link.sm { min-height: 32px; padding: 0 12px; font-size: 14px; }
+  .check-row { display: flex; flex-wrap: wrap; gap: 4px 20px; flex-basis: 100%; }
+  .check-row .check { flex: none; font-size: 14px; }
+  input[type=color] { width: 56px; padding: 4px; }
 
   /* day schedule */
   .sched-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .btn-link { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 8px; font-weight: 600;
-              color: var(--ink); text-decoration: none; border: 1px solid var(--line); }
-  .btn-link:hover { border-color: var(--ink); }
+              color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: none; }
+  .btn-link:hover { border-color: var(--accent); color: var(--accent); }
   #wk-pending:not(:empty) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
   .wk-chip { padding: 8px 14px; border-radius: 99px; font-weight: 600; cursor: grab;
- background: var(--over); color: var(--surface); }
-  .timeline { list-style: none; padding: 0; margin: 12px 0 0; }
+ background: var(--orange); color: var(--on-color); }
+  /* hour rows of fixed height; events sit on a layer above them, as tall as they last */
+  .tl { position: relative; margin-top: 12px; --hour: 48px; }
+  .timeline { list-style: none; padding: 0; margin: 0; }
   .timeline li { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 8px; align-items: center;
-                 min-height: 40px; border-top: 1px solid var(--line); }
-  .timeline li.drop-on { background: color-mix(in oklab, var(--over) 18%, var(--surface)); }
-  .timeline .hr { font-size: 12px; color: var(--muted); }
-  .timeline .evs { display: flex; flex-wrap: wrap; gap: 4px; }
-  .ev { font-size: 13px; padding: 2px 8px; border-radius: 6px; background: var(--paper); }
-  .ev.wk { background: var(--ink); color: var(--surface); }
+                 height: var(--hour); border-top: 1px solid var(--line); }
+  .timeline li.drop-on { background: color-mix(in oklab, var(--blue) 18%, var(--surface)); }
+  .timeline .hr { font-size: 12px; color: var(--muted); align-self: start; padding-top: 4px; }
+  #ev-layer { position: absolute; top: 0; bottom: 0; left: 56px; right: 0; pointer-events: none; }
+  #ev-layer.pending { right: 38px; }  /* keep the hours' + buttons clickable */
+  /* shortcut: touch-action none lets a finger drag events, but page scrolling only works outside them; add a long-press if that annoys */
+  #ev-layer .ev { position: absolute; pointer-events: auto; overflow: hidden; line-height: 1.3;
+                  cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+  #ev-layer .ev.moving { z-index: 1; cursor: grabbing; outline: 2px solid var(--blue); outline-offset: 1px; }
+  .ev { display: block; padding: 5px 10px; border-radius: 8px; font-size: 14px; font-weight: 600;
+        background: color-mix(in oklab, var(--blue) 14%, var(--surface)); box-shadow: inset 4px 0 0 var(--blue); }
+  .ev.wk { background: var(--orange); color: var(--on-color); box-shadow: none; }
+  .ev.typed { background: color-mix(in oklab, var(--c) 40%, var(--surface)); box-shadow: inset 4px 0 0 var(--c); }
   .ev.done { text-decoration: line-through; opacity: .6; }
+  button.ev { min-height: 0; font: inherit; font-size: 13px; font-weight: 400; border: 0; text-align: left; }
+  button.ev::after { content: " ›"; }
+  #wk-dialog { width: min(600px, calc(100% - 32px)); max-height: calc(100% - 32px); padding: 24px; color: var(--ink);
+               background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
+  #wk-dialog::backdrop { background: rgb(0 0 0 / .45); }
+  #wk-dialog form { display: flex; justify-content: flex-end; margin-top: 16px; }
   .timeline .drop { min-height: 30px; width: 30px; padding: 0; border-radius: 50%; font-weight: 400; color: var(--muted); }
 
   /* program and scheduled workout */
@@ -152,8 +185,9 @@
   #program-choices { display: grid; gap: 8px; }
   .choice { display: flex; gap: 12px; align-items: flex-start; padding: 12px; cursor: pointer;
             background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
-  .choice:has(input:checked) { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
-  .choice input { width: 18px; height: 18px; min-height: 0; margin: 2px 0 0; flex: none; accent-color: var(--ink); }
+  .choice:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent);
+                              background: color-mix(in oklab, var(--accent) 6%, var(--surface)); }
+  .choice input { width: 18px; height: 18px; min-height: 0; margin: 2px 0 0; flex: none; accent-color: var(--accent); }
   .choice b { display: block; }
   .choice .muted { display: block; margin-top: 2px; }
   .group-h { font-family: inherit; font-size: 14px; font-weight: 600; margin: 18px 0 8px; }
@@ -194,7 +228,7 @@
   .balance b { font-weight: 600; text-align: right; }
   .track { height: 12px; border-radius: 6px; background: var(--paper); display: flex; overflow: hidden; }
   .track i { height: 100%; transition: width .3s ease; }
-  #eat-bar { background: var(--ink); } #base-bar { background: var(--bar); } #act-bar { background: var(--muted); }
+  #eat-bar { background: var(--accent); } #base-bar { background: var(--bar); } #act-bar { background: var(--muted); }
   .net { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; margin: 16px 0 0; }
   .net strong { font-family: var(--display); font-size: 28px; font-weight: 700; }
   .macros { display: flex; flex-wrap: wrap; gap: 8px 32px; margin: 18px 0 0; }
@@ -243,7 +277,7 @@
   .chart text { fill: var(--muted); font-size: 11px; }
   .chart .grid { stroke: var(--line); stroke-width: 1; }
   .chart .dot { outline: none; }
-  .chart .dot circle:last-child { fill: var(--ink); stroke: var(--paper); stroke-width: 2; transition: r .1s; }
+  .chart .dot circle:last-child { fill: var(--accent); stroke: var(--paper); stroke-width: 2; transition: r .1s; }
   .chart .dot:hover circle:last-child, .chart .dot:focus circle:last-child { r: 7; }
 
   #toast { position: fixed; z-index: 20; left: 50%; bottom: 24px; transform: translate(-50%, 16px); opacity: 0; pointer-events: none;
@@ -306,6 +340,19 @@
           <label class="field sm">Time
             <input id="plan-time" type="time">
           </label>
+          <label class="field sm">End
+            <input id="plan-end" type="time" aria-describedby="plan-end-hint">
+          </label>
+          <span id="plan-end-hint" class="sr">Optional. Without an end time the event lasts an hour.</span>
+          <label class="field sm">Type
+            <select id="plan-type"></select>
+          </label>
+          <label class="field" id="plan-link-f" hidden>Meeting link
+            <input id="plan-link" type="url" placeholder="https://…">
+          </label>
+          <label class="field" id="plan-loc-f" hidden>Location
+            <input id="plan-location" placeholder="e.g. Room 2.14, Café Central" maxlength="200">
+          </label>
           <datalist id="plan-list">
             <option>Groceries</option><option>Wash the dishes</option><option>Clean the house</option>
             <option>Read a book</option><option>Write code</option><option>Apply for jobs</option>
@@ -313,16 +360,33 @@
           <button>Add to plan</button>
         </form>
         <ul id="plan" class="list"></ul>
+        <details>
+          <summary>Event types</summary>
+          <p class="muted">Each type has its own color on the calendar and can ask for a meeting link or a location.</p>
+          <ul id="types" class="list"></ul>
+          <form id="type-form" class="add">
+            <label class="field">Name <input name="name" placeholder="e.g. Gym class" maxlength="200" required></label>
+            <label class="field sm">Color <input name="color" type="color" value="#2f6fde"></label>
+            <div class="check-row">
+              <label class="check"><input type="checkbox" name="has_link"> Meeting link</label>
+              <label class="check"><input type="checkbox" name="has_location"> Location</label>
+            </div>
+            <button>Add type</button>
+          </form>
+        </details>
       </section>
 
       <section aria-labelledby="sched-h">
         <div class="sched-head">
           <h2 id="sched-h">Schedule</h2>
-          <a id="export" class="btn-link" hidden>Export to calendar</a>
+          <button type="button" id="export" class="btn-link" hidden>Email to calendar</button>
         </div>
-        <p class="muted intro">Timed items as calendar events, one hour each. On iPhone, open the export in Safari and tap Add All.</p>
+        <p class="muted intro">Timed items as calendar events, an hour each unless you give an end time; a workout lasts as long as its sets take. Tap a workout to see its exercises. On iPhone, open the emailed attachment in Mail and tap Add All.</p>
         <div id="wk-pending"></div>
-        <ol id="timeline" class="timeline"></ol>
+        <p id="move-hint" class="sr">Drag up or down, or press the up and down arrow keys, to move it by 15 minutes.</p>
+        <div id="timeline" class="tl"><ol id="hours" class="timeline"></ol><div id="ev-layer"></div></div>
+        <dialog id="wk-dialog" aria-labelledby="wk-dialog-h"><div id="wk-dialog-body"></div>
+          <form method="dialog"><button class="quiet">Close</button></form></dialog>
       </section>
 
       <section aria-labelledby="goals-h">
@@ -550,7 +614,9 @@ const signed = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
 const balance = net => net ? `${fmt(Math.abs(net))} kcal ${net > 0 ? 'over' : 'under'}` : 'Even';
 const longDate = (key, opts) => new Date(key + 'T00:00').toLocaleDateString(undefined, opts);
 const shortDate = key => longDate(key, { day: 'numeric', month: 'short', year: 'numeric' });
-const motion = () => matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+const del = (type, id, what) =>
+  `<button class="del" data-del="${type}/${id}" aria-label="Delete ${esc(what)}" title="Delete">✕</button>`;
+const motion = () =>matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 
 const today = iso(new Date());
 let selected = today, month = today.slice(0, 7), foods = {};
@@ -593,24 +659,39 @@ const activeProgram = () => PROGRAMS.find(p => p.id === program.program);
 function workoutFor(key) {
   const def = activeProgram();
   if (!def || key < program.start) return null;
-  const s = def.schedule;
-  const id = Array.isArray(s) ? s[Math.round((Date.parse(key) - Date.parse(program.start)) / 864e5) % s.length]
-                              : s[new Date(key + 'T00:00').getDay()];
+  const s = def.schedule, id = s[Math.round((Date.parse(key) - Date.parse(program.start)) / 864e5) % s.length];
   return id ? { ...def.workouts[id], slot: `${def.id}:${id}` } : null;
 }
+// session length: 10 min warm-up, then each set plus its rest; heavier rep ranges rest longer. Rounded to 5 min.
+const workoutMinutes = w => Math.round((10 + w.exercises.reduce((m, [, sets, reps]) => {
+  const low = parseInt(reps);
+  return m + sets * (low <= 6 ? 4 : low <= 10 ? 3 : 2.5);
+}, 0)) / 5) * 5;
+const endTime = (time, minutes) => {
+  const m = +time.slice(0, 2) * 60 + +time.slice(3) + minutes;
+  return pad(Math.floor(m / 60) % 24) + ':' + pad(m % 60);
+};
 
-const WEEK = [1, 2, 3, 4, 5, 6, 0], DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// the workout's exercises with swaps applied and each one's last logged session before this day
+async function workoutPlan(day, w) {
+  // swapped exercises replace the program's default in this slot, for history and logging too
+  const exercises = w.exercises.map(([orig, sets, reps], i) =>
+    ({ orig, sets, reps, slot: `${w.slot}:${i}`, name: swaps[`${w.slot}:${i}`] || orig }));
+  const last = await api(`last-sets?before=${day}&` + exercises.map(e => 'name=' + encodeURIComponent(e.name)).join('&'));
+  return exercises.map(e => ({ ...e, last: last[e.name] }));
+}
+
 function renderPreview(id) {
   $('#program-preview')?.remove();
   const def = PROGRAMS.find(p => p.id === id);
   if (!def) return;
-  const s = def.schedule, days = Array.isArray(s) ? s.map((w, i) => [`Day ${i + 1}`, w]) : WEEK.map(d => [DAY_NAMES[d], s[d]]);
+  const days = def.schedule.map((w, i) => [`Day ${i + 1}`, w]);
   // shown right under the picked program, so it is in view without scrolling
   $(`input[name=program][value="${id}"]`).closest('.choice').insertAdjacentHTML('afterend',
     `<div id="program-preview" class="preview"><p>${esc(def.why)}</p>` +
-    `<ol class="week" style="grid-template-columns:repeat(${days.length},minmax(0,1fr))" aria-label="${Array.isArray(s) ? 'Repeating cycle' : 'Week'}">` +
+    `<ol class="week" style="grid-template-columns:repeat(${days.length},minmax(0,1fr))" aria-label="Repeating cycle">` +
     days.map(([label, w]) => `<li class="${w ? '' : 'rest'}">${label}<b>${w ? esc(def.workouts[w].name) : 'Rest'}</b></li>`).join('') + '</ol>' +
-    (Array.isArray(s) ? '<p class="muted" style="margin-top:6px">The cycle repeats from your start date.</p>' : '') +
+    '<p class="muted" style="margin-top:6px">Day 1 is your start date; the cycle then repeats.</p>' +
     Object.values(def.workouts).map(w => `<details><summary>${esc(w.name)}: ${esc(w.focus.toLowerCase())}</summary><ul>` +
       w.exercises.map(([name, sets, reps]) => `<li>${esc(name)}, ${sets} × ${reps}</li>`).join('') + '</ul></details>').join('') +
     '</div>');
@@ -649,15 +730,12 @@ async function renderWorkout(d) {
       '<h2>Rest day</h2><p class="empty">No session scheduled. Recovery is when your muscles grow; a walk or some stretching is enough.</p>';
     return;
   }
-  // swapped exercises replace the program's default in this slot, for history and logging too
-  const exercises = w.exercises.map(([orig, sets, reps], i) =>
-    ({ orig, sets, reps, slot: `${w.slot}:${i}`, name: swaps[`${w.slot}:${i}`] || orig }));
-  const last = await api(`last-sets?before=${day}&` + exercises.map(e => 'name=' + encodeURIComponent(e.name)).join('&'));
+  const exercises = await workoutPlan(day, w);
   if (day !== selected) return;  // the user moved on while this loaded
   const logged = name => d.sets.filter(s => s.exercise.toLowerCase() === name.toLowerCase()).length;
-  out.innerHTML = `<h2>${esc(w.name)}</h2><p class="muted intro">${esc(w.focus)}, ${w.exercises.length} exercises.</p><ol class="plan-ex">` +
-    exercises.map(({ orig, sets, reps, slot, name }) => {
-      const l = last[name], n = logged(name), options = EXERCISES[orig].group.filter(([alt]) => alt !== name);
+  out.innerHTML = `<h2>${esc(w.name)}</h2><p class="muted intro">${esc(w.focus)}, ${w.exercises.length} exercises, about ${workoutMinutes(w)} minutes.</p><ol class="plan-ex">` +
+    exercises.map(({ orig, sets, reps, slot, name, last: l }) => {
+      const n = logged(name), options = EXERCISES[orig].group.filter(([alt]) => alt !== name);
       return `<li><div class="ex-main"><b>${esc(name)}</b><span class="muted">${esc(EXERCISES[name]?.gear || '')}</span>` +
         `<span class="last">${l ? `Last time, ${shortDate(l.day)}: ${setsText(l.sets)}` : '<span class="muted">No history yet</span>'}</span>` +
         (options.length ? `<details class="swap"><summary>${name === orig ? 'Swap exercise' : `Swapped in for ${esc(orig)}`}</summary>` +
@@ -694,8 +772,9 @@ async function renderMonth() {
     // the program's workout still needs a time; past days are left alone
     const todo = w && !s.workouts && key >= today, html = todo ? '<span class="todo"></span>' : '';
     const label = todo ? `, ${w.name} workout to schedule` : '';
+    const dots = s.colors?.length ? `<span class="types">${s.colors.map(c => `<i style="background:${c}"></i>`).join('')}</span>` : '';
     return total ? { cls: done === total ? ' all' : '', label: `, ${done} of ${total} done${label}`,
-      html: `<span class="kc">${done}/${total}</span><span class="meter"><i style="width:${done / total * 100}%"></i></span>${html}` } :
+      html: `${dots}<span class="kc">${done}/${total}</span><span class="meter"><i style="width:${done / total * 100}%"></i></span>${html}` } :
       { label, html };
   });
   $('#sport-grid').innerHTML = grid((key, s) => {
@@ -712,8 +791,6 @@ async function renderDay() {
     `<span class="short">${longDate(selected, { weekday: 'short', day: 'numeric', month: 'short' })}</span>`;
   $('#today-badge').hidden = selected !== today;
   $('#today').hidden = selected === today;
-  const del = (type, id, what) =>
-    `<button class="del" data-del="${type}/${id}" aria-label="Delete ${esc(what)}" title="Delete">✕</button>`;
 
   // planner
   const done = d.tasks.filter(t => t.done).length, total = d.tasks.length;
@@ -723,7 +800,11 @@ async function renderDay() {
   $('#task-bar').style.width = total ? done / total * 100 + '%' : '0';
   const item = t => `<li><label class="check${t.done ? ' done' : ''}"><input type="checkbox" data-task="${t.id}"${t.done ? ' checked' : ''}>` +
     (t.kind !== 'goal' ? `<span class="time">${t.time || ''}</span>` : '') +
-    `<span class="title">${esc(t.title)}</span></label>${del('tasks', t.id, t.title)}</li>`;
+    (t.kind === 'workout' || t.color ? `<i class="tdot" style="background:${t.kind === 'workout' ? 'var(--orange)' : t.color}"></i>` : '') +
+    `<span class="title">${esc(t.title)}` +
+    (t.type ? `<span class="meta">${esc([t.type, t.location].filter(Boolean).join(' · '))}</span>` : '') + '</span></label>' +
+    `<span class="end">${t.link ? `<a class="btn-link sm" href="${esc(t.link)}" target="_blank" rel="noopener noreferrer">Join</a>` : ''}` +
+    `${del('tasks', t.id, t.title)}</span></li>`;
   $('#plan').innerHTML = d.tasks.filter(t => t.kind !== 'goal').map(item).join('') ||
     '<li class="empty">No plan yet. Add what you want to get done, with a time if it has one.</li>';
   $('#goals').innerHTML = d.tasks.filter(t => t.kind === 'goal').map(item).join('') ||
@@ -732,20 +813,43 @@ async function renderDay() {
   // schedule: timed items on an hour grid; the program's workout waits above it until it gets an hour
   const w = workoutFor(selected), timed = d.tasks.filter(t => t.time), hourOf = t => +t.time.slice(0, 2);
   pending = w && !d.tasks.some(t => t.kind === 'workout') ? `${w.name} workout` : null;
-  $('#wk-pending').innerHTML = pending ? `<span class="wk-chip" draggable="true">${esc(pending)}</span>` +
+  $('#wk-pending').innerHTML = pending ? `<span class="wk-chip" draggable="true">${esc(pending)}, ${workoutMinutes(w)} min</span>` +
     '<span class="muted">Needs a time. Drag it onto an hour, or tap that hour\'s +.</span>' : '';
-  const hours = [], from = Math.min(6, ...timed.map(hourOf)), to = Math.max(22, ...timed.map(hourOf));
+  const ev = (t, pos) => {
+    const attrs = `class="ev${t.kind === 'workout' ? ' wk' : ''}${t.color ? ' typed' : ''}${t.done ? ' done' : ''}"` +
+      ` style="${pos}${t.color ? `;--c:${t.color}` : ''}"${t.color ? ` title="${esc(t.type)}"` : ''}` +
+      ` data-id="${t.id}" data-start="${startOf(t)}" data-len="${t.minutes || ''}" aria-describedby="move-hint"`;
+    const label = `<span class="when">${when(startOf(t), t.minutes)}</span> ${esc(t.title)}`;
+    // the program's workout opens its exercises; on a day without one there is nothing to show
+    return t.kind === 'workout' && w ? `<button type="button" ${attrs} data-wk aria-haspopup="dialog">${label}</button>` :
+      `<span ${attrs} tabindex="0">${label}</span>`;
+  };
+  const startOf = t => hourOf(t) * 60 + +t.time.slice(3), endOf = t => startOf(t) + (t.minutes || 60);
+  const hours = [], from = Math.min(6, ...timed.map(hourOf));
+  const to = Math.min(23, Math.max(22, ...timed.map(t => Math.ceil(endOf(t) / 60) - 1)));
   for (let h = from; h <= to; h++) {
     const at = pad(h) + ':00';
-    hours.push(`<li data-hour="${h}"><span class="hr">${at}</span><span class="evs">` +
-      timed.filter(t => hourOf(t) === h).map(t =>
-        `<span class="ev${t.kind === 'workout' ? ' wk' : ''}${t.done ? ' done' : ''}">${t.time} ${esc(t.title)}</span>`).join('') +
-      '</span>' + (pending ? `<button type="button" class="quiet drop" data-at="${at}" aria-label="Schedule ${esc(pending)} at ${at}">+</button>` : '') +
+    hours.push(`<li data-hour="${h}"><span class="hr">${at}</span><span></span>` +
+      (pending ? `<button type="button" class="quiet drop" data-at="${at}" aria-label="Schedule ${esc(pending)} at ${at}">+</button>` : '') +
       '</li>');
   }
-  $('#timeline').innerHTML = hours.join('');
+  $('#hours').innerHTML = hours.join('');
+  // overlapping events share the width: each run of overlapping events (a cluster) splits it into lanes
+  let cluster, clusterEnd = -1;
+  const placed = timed.map(t => {  // tasks come sorted by start time
+    const s = startOf(t), e = Math.min(Math.max(endOf(t), s + 30), (to + 1) * 60);  // at least half an hour tall, cut at midnight
+    if (s >= clusterEnd) cluster = { lanes: [] };
+    clusterEnd = Math.max(clusterEnd, e);
+    let lane = cluster.lanes.findIndex(end => end <= s);
+    if (lane < 0) lane = cluster.lanes.length;
+    cluster.lanes[lane] = e;
+    return { t, s, e, lane, cluster };
+  });
+  $('#ev-layer').className = pending ? 'pending' : '';
+  $('#ev-layer').innerHTML = placed.map(({ t, s, e, lane, cluster: { lanes: { length: n } } }) =>
+    ev(t, `top:calc(${(s - from * 60) / 60} * var(--hour) + 2px);height:calc(${(e - s) / 60} * var(--hour) - 3px);` +
+      `left:${lane / n * 100}%;width:calc(${100 / n}% - 3px)`)).join('');
   $('#export').hidden = !timed.length;
-  $('#export').href = `/api/calendar/${selected}.ics`;
 
   // sports
   const groups = {};
@@ -859,7 +963,27 @@ function dotChart(rows, width) {
     '</svg>';
 }
 
-const refresh = () => Promise.all([renderMonth(), renderDay(), renderNames()]);
+// --- event types: color and optional fields (meeting link, location) for plan items ---
+let types = [];
+const planType = () => types.find(t => t.id === +$('#plan-type').value);
+function typeFields() {
+  const t = planType();
+  $('#plan-link-f').hidden = !t?.has_link;
+  $('#plan-loc-f').hidden = !t?.has_location;
+}
+$('#plan-type').addEventListener('change', typeFields);
+async function loadTypes() {
+  types = await api('event_types');
+  const pick = $('#plan-type'), current = pick.value;
+  pick.innerHTML = '<option value="">No type</option>' + types.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+  pick.value = types.some(t => String(t.id) === current) ? current : '';
+  typeFields();
+  $('#types').innerHTML = types.map(t => `<li><span><i class="tdot" style="background:${t.color}"></i> ${esc(t.name)} ` +
+    `<span class="muted">${[t.has_link && 'meeting link', t.has_location && 'location'].filter(Boolean).join(', ')}</span></span>` +
+    `${del('event_types', t.id, t.name + ' type')}</li>`).join('') || '<li class="empty">No event types yet.</li>';
+}
+
+const refresh = () => Promise.all([renderMonth(), renderDay(), renderNames(), loadTypes()]);
 const setDay = key => { selected = key; month = key.slice(0, 7); return refresh(); };
 const shiftDay = delta => {
   const [y, m, d] = selected.split('-').map(Number);
@@ -915,6 +1039,13 @@ document.addEventListener('click', e => {
   $('#reps').focus({ preventScroll: true });
 });
 
+$('#export').addEventListener('click', async () => {
+  const b = $('#export');
+  b.disabled = true;
+  try { await api(`calendar/${selected}/email`, 'POST'); toast('Sent. Open the attachment in Mail and tap Add All.'); }
+  finally { b.disabled = false; }
+});
+
 document.addEventListener('click', async e => {
   const btn = e.target.closest('[data-del]');
   if (btn) { await api(btn.dataset.del, 'DELETE'); refresh(); toast('Deleted.'); }
@@ -926,17 +1057,38 @@ document.addEventListener('change', async e => {
   finally { refresh(); }  // on failure this puts the checkbox back to its saved state
 });
 
-const addTask = (kind, title, time) => api('tasks', 'POST', { day: selected, kind, title, time });
+const addTask = (kind, title, time, extra) => api('tasks', 'POST', { day: selected, kind, title, time, ...extra });
 
 // the pending workout lands where it is dropped: the top half of an hour means :00, the bottom half :30
 let pending = null;  // title of the selected day's program workout while it has no time yet
 async function scheduleWorkout(time) {
-  const title = pending;
-  await addTask('workout', title, time);
+  const title = pending, w = workoutFor(selected), exercises = await workoutPlan(selected, w);
+  // shortcut: the exercise list is saved when scheduled, so later swaps don't reach the export; reschedule to update it
+  const notes = `${w.focus}, about ${workoutMinutes(w)} minutes.\n\n` + exercises.map(({ name, sets, reps, last }) => {
+    const top = last && Math.max(...last.sets.map(s => s.weight));
+    return `${name}: ${sets} × ${reps}${top ? ` at ${top} kg` : ''}` + (last ? ` (last time ${shortDate(last.day)}: ${setsText(last.sets)})` : '');
+  }).join('\n');
+  await addTask('workout', title, time, { minutes: workoutMinutes(w), notes });
   refresh();
   toast(`${title} scheduled at ${time}.`);
 }
-const timeline = $('#timeline'), dropRow = e => pending && e.target.closest('#timeline li');
+// the scheduled workout's exercises: sets × reps, and the weight to start from (last session's top set)
+async function openWorkout() {
+  const day = selected, w = workoutFor(day), exercises = await workoutPlan(day, w);
+  if (day !== selected) return;
+  $('#wk-dialog-body').innerHTML = `<h2 id="wk-dialog-h">${esc(w.name)}</h2>` +
+    `<p class="muted intro">${esc(w.focus)}, ${exercises.length} exercises, about ${workoutMinutes(w)} minutes.</p><ol class="plan-ex">` +
+    exercises.map(({ name, sets, reps, last }) => {
+      const top = last && Math.max(...last.sets.map(s => s.weight));
+      return `<li><div class="ex-main"><b>${esc(name)}</b><span class="muted">${esc(EXERCISES[name]?.gear || '')}</span>` +
+        `<span class="last">${last ? `Last time, ${shortDate(last.day)}: ${setsText(last.sets)}` : '<span class="muted">No history yet</span>'}</span></div>` +
+        `<div class="ex-side"><span class="target">${sets} × ${reps}</span>` +
+        `<span class="muted">${top ? `at ${top} kg` : last ? 'bodyweight' : 'pick a starting weight'}</span></div></li>`;
+    }).join('') + '</ol>';
+  $('#wk-dialog').showModal();
+}
+// the hour under the pointer, also when it is over an event drawn on top of the rows
+const timeline = $('#timeline'), dropRow = e => pending && document.elementsFromPoint(e.clientX, e.clientY).find(el => el.matches('#hours li'));
 const clearDrop = () => timeline.querySelectorAll('.drop-on').forEach(li => li.classList.remove('drop-on'));
 document.addEventListener('dragstart', e => {
   if (e.target.closest?.('.wk-chip')) e.dataTransfer.setData('text/plain', pending);  // Firefox drags only with data set
@@ -956,15 +1108,77 @@ timeline.addEventListener('drop', e => {
   const r = li.getBoundingClientRect();
   scheduleWorkout(pad(li.dataset.hour) + (e.clientY - r.top > r.height / 2 ? ':30' : ':00'));
 });
+
+// drag an event up or down to move it, in 15-minute steps; arrow keys do the same
+const STEP = 15, hhmm = m => endTime('00:00', m), clampStart = m => Math.max(0, Math.min(m, 24 * 60 - STEP));
+const when = (start, len) => hhmm(start) + (len ? '–' + hhmm(start + len) : '');
+const layer = $('#ev-layer');
+let drag = null, dragged = false;
+async function moveTask(id, start) {
+  await api('tasks/' + id, 'PATCH', { time: hhmm(start) });
+  await refresh();
+}
+layer.addEventListener('pointerdown', e => {
+  const el = e.target.closest('.ev');
+  dragged = false;
+  if (!el || e.button !== 0) return;
+  drag = { el, y: e.clientY, start: +el.dataset.start, to: +el.dataset.start };
+  el.setPointerCapture(e.pointerId);
+});
+layer.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const { el, y, start } = drag, stepPx = $('#hours li').offsetHeight * STEP / 60;
+  drag.to = clampStart(start + Math.round((e.clientY - y) / stepPx) * STEP);
+  el.style.transform = `translateY(${(drag.to - start) / STEP * stepPx}px)`;
+  el.classList.toggle('moving', drag.to !== start);
+  el.querySelector('.when').textContent = when(drag.to, +el.dataset.len);
+});
+layer.addEventListener('pointerup', async () => {
+  if (!drag) return;
+  const { el, start, to } = drag;
+  drag = null;
+  if (to === start) return;
+  dragged = true;  // swallow the click that ends the drag, so a moved workout doesn't open its dialog
+  await moveTask(el.dataset.id, to);
+  toast(`Moved to ${hhmm(to)}.`);
+});
+layer.addEventListener('pointercancel', () => { drag = null; renderDay(); });
+layer.addEventListener('click', e => { if (dragged) { dragged = false; e.stopPropagation(); } }, true);
+layer.addEventListener('keydown', async e => {
+  const el = e.target.closest('.ev'), dir = { ArrowUp: -1, ArrowDown: 1 }[e.key];
+  if (!el || !dir) return;
+  e.preventDefault();
+  const id = el.dataset.id, to = clampStart(+el.dataset.start + dir * STEP);
+  await moveTask(id, to);
+  $(`#ev-layer [data-id="${id}"]`)?.focus();  // the re-render replaced the element
+});
+
 timeline.addEventListener('click', e => {
   const b = e.target.closest('[data-at]');
   if (b) scheduleWorkout(b.dataset.at);
+  if (e.target.closest('[data-wk]')) openWorkout();
 });
 $('#plan-form').addEventListener('submit', async e => {
   e.preventDefault();
-  await addTask('plan', $('#plan-title').value, $('#plan-time').value);
-  e.target.reset(); $('#plan-title').focus();
+  const t = planType(), start = $('#plan-time').value, end = $('#plan-end').value;
+  if (end && !start) return toast('Add a start time too, or clear the end time.', true);
+  if (end && end === start) return toast('The end time has to differ from the start time.', true);
+  const mins = s => +s.slice(0, 2) * 60 + +s.slice(3);
+  // an end before the start runs past midnight, e.g. 22:00 to 01:00
+  const minutes = end ? (mins(end) - mins(start) + 1440) % 1440 : null;
+  // only the fields the chosen type shows are sent
+  await addTask('plan', $('#plan-title').value, start, { type_id: t?.id ?? null, minutes,
+    link: t?.has_link && $('#plan-link').value.trim() || null, location: t?.has_location && $('#plan-location').value.trim() || null });
+  e.target.reset(); typeFields(); $('#plan-title').focus();
   refresh();
+});
+$('#type-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(e.target));
+  await api('event_types', 'POST', { name: d.name, color: d.color, has_link: 'has_link' in d, has_location: 'has_location' in d });
+  e.target.reset();
+  refresh();
+  toast(`Added the ${d.name} event type.`);
 });
 $('#goal-form').addEventListener('submit', async e => {
   e.preventDefault();

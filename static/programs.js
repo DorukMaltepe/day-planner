@@ -35,17 +35,17 @@ const EXERCISE_GROUPS = [
 const EXERCISES = {};  // name -> { gear, group }
 EXERCISE_GROUPS.forEach(group => group.forEach(([name, gear]) => EXERCISES[name] = { gear, group }));
 
-// Program exercise: [name, sets, reps]. schedule: an object maps weekday (0 = Sunday … 6 = Saturday) to a
-// workout; an array is a rolling cycle counted from the program's start date (null = rest day).
+// Program exercise: [name, sets, reps]. schedule: a rolling cycle of workouts counted
+// from the program's start date (null = rest day), so sessions follow rest days, not fixed weekdays.
 // "why" summarizes the research the plan leans on: weekly sets per muscle drive growth (roughly up to
 // 10+ sets a week), and with equal weekly sets, training a muscle more often adds little.
 const PROGRAMS = [
   {
     id: 'machine-3', type: 'Push/Pull/Legs',
     name: 'Machine PPL, 3 days a week',
-    about: 'Beginner. Monday push, Wednesday pull, Friday legs. Machines and cables only.',
+    about: 'Beginner. Push, rest, pull, rest, legs, two rest days. Machines and cables only.',
     why: 'Each muscle gets about 6 sets a week, once a week. That is below the roughly 10 weekly sets research links to the most growth, but guided machines make it a safe way to learn. Add a fourth set to each exercise once it feels routine.',
-    schedule: { 1: 'push', 3: 'pull', 5: 'legs' },
+    schedule: ['push', null, 'pull', null, 'legs', null, null],
     workouts: {
       push: { name: 'Push', focus: 'Chest, shoulders and triceps', exercises: [
         ['Chest press', 3, '8–12'], ['Shoulder press', 3, '8–12'], ['Pec fly', 3, '10–15'],
@@ -64,9 +64,9 @@ const PROGRAMS = [
   {
     id: 'classic-6', type: 'Push/Pull/Legs',
     name: 'Classic PPL, 6 days a week',
-    about: 'Intermediate. Monday to Saturday. A days are heavy barbell work, B days are higher-rep volume.',
+    about: 'Intermediate. Six days on, one off. A days are heavy barbell work, B days are higher-rep volume.',
     why: 'Each muscle is trained twice a week for about 12 to 16 sets, which sits in the range research links to the most growth. The cost is six gym visits a week.',
-    schedule: { 1: 'pushA', 2: 'pullA', 3: 'legsA', 4: 'pushB', 5: 'pullB', 6: 'legsB' },
+    schedule: ['pushA', 'pullA', 'legsA', 'pushB', 'pullB', 'legsB', null],
     workouts: {
       pushA: { name: 'Push A', focus: 'Heavy chest and shoulders', exercises: [
         ['Bench press', 4, '5–8'], ['Overhead press', 3, '6–8'], ['Incline chest press', 3, '8–10'],
@@ -118,9 +118,9 @@ const PROGRAMS = [
   {
     id: 'full-body-3', type: 'Full body',
     name: 'Full body, 3 days a week',
-    about: 'Beginner to intermediate. Monday, Wednesday and Friday, three different full-body sessions.',
+    about: 'Beginner to intermediate. Three different full-body sessions, each followed by at least one rest day.',
     why: 'Every muscle is trained three times a week, so you reach about 9 to 12 weekly sets with short sessions. A good pick if you can only go three times a week but want twice-a-week-or-more frequency.',
-    schedule: { 1: 'a', 3: 'b', 5: 'c' },
+    schedule: ['a', null, 'b', null, 'c', null, null],
     workouts: {
       a: { name: 'Full body A', focus: 'Squat, bench and row', exercises: [
         ['Back squat', 3, '6–10'], ['Bench press', 3, '6–10'], ['Seated row', 3, '8–12'],
@@ -139,9 +139,9 @@ const PROGRAMS = [
   {
     id: 'upper-lower-4', type: 'Upper/lower',
     name: 'Upper/lower, 4 days a week',
-    about: 'Intermediate. Monday upper, Tuesday lower, Thursday upper, Friday lower.',
+    about: 'Intermediate. Upper, lower, rest, upper, lower, two rest days.',
     why: 'Each muscle is trained twice a week for about 10 to 14 sets, matching what the research supports, in four sessions instead of six. A common middle ground between full body and PPL.',
-    schedule: { 1: 'upperA', 2: 'lowerA', 4: 'upperB', 5: 'lowerB' },
+    schedule: ['upperA', 'lowerA', null, 'upperB', 'lowerB', null, null],
     workouts: {
       upperA: { name: 'Upper A', focus: 'Heavy press and row', exercises: [
         ['Bench press', 4, '5–8'], ['Barbell row', 4, '6–10'], ['Overhead press', 3, '6–10'],
@@ -165,9 +165,9 @@ const PROGRAMS = [
   {
     id: 'body-part-5', type: 'Body-part split',
     name: 'Body-part split, 5 days a week',
-    about: 'Intermediate. Chest, back, legs, shoulders and arms on their own days, Monday to Friday.',
+    about: 'Intermediate. Chest, back, legs, shoulders and arms on their own days, five on and two off.',
     why: 'Each muscle gets 13 to 18 sets in one long session, once a week. With the same weekly sets, research finds frequency matters little, so it works. The trade-off is a full week before a muscle is trained again.',
-    schedule: { 1: 'chest', 2: 'back', 3: 'legs', 4: 'shoulders', 5: 'arms' },
+    schedule: ['chest', 'back', 'legs', 'shoulders', 'arms', null, null],
     workouts: {
       chest: { name: 'Chest', focus: 'Chest, with some triceps', exercises: [
         ['Bench press', 4, '6–10'], ['Incline dumbbell press', 3, '8–12'], ['Chest press', 3, '10–12'],
