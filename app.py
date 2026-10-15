@@ -22,10 +22,11 @@ MIN_KCAL = {"female": 1200, "male": 1500}  # common safe minimum without medical
 # the usual speed fills in when only the time or only the distance is known.
 SPORTS = [(re.compile(p), met) for p, met in [
     (r"hik|wander|trek", 6.0),
-    (r"walk|gehen|spazier", (5, [(2, 2.0), (3.2, 2.8), (4, 3.0), (4.8, 3.5), (5.6, 4.3), (6.4, 5.0), (7.2, 7.0), (8, 8.3)])),
-    (r"\brun|jog|lauf|sprint", (10, [(6.4, 6.0), (8, 8.3), (9.7, 9.8), (11.3, 11.0), (12.9, 11.8), (14.5, 12.8), (16.1, 14.5), (19.3, 19.0)])),
+    (r"\brun|jog|lauf(?!band)|sprint", (10, [(6.4, 6.0), (8, 8.3), (9.7, 9.8), (11.3, 11.0), (12.9, 11.8), (14.5, 12.8), (16.1, 14.5), (19.3, 19.0)])),
     (r"cycl|bike|biking|\brad|fahrrad", (18, [(12, 4.0), (17.5, 6.8), (20.5, 8.0), (24, 10.0), (28, 12.0), (32, 15.8)])),
     (r"swim|schwimm", 6.0),
+    # after the sports above: "gehen" also means "go", as in "Laufen gehen"
+    (r"walk|gehen|spazier", (5, [(2, 2.0), (3.2, 2.8), (4, 3.0), (4.8, 3.5), (5.6, 4.3), (6.4, 5.0), (7.2, 7.0), (8, 8.3)])),
     (r"\brow|ruder", 7.0),
     (r"hiit|circuit|crossfit|zirkel", 8.0),
     (r"box|kick|martial|karate|judo", 7.8),
@@ -49,7 +50,7 @@ def burn(title, minutes, km, weight):
     if isinstance(met, tuple):
         usual, points = met
         speed = km / minutes * 60 if km and minutes else usual
-        minutes = minutes or km / usual * 60
+        minutes = minutes or min(km / usual * 60, 1440)  # a day at most, as for typed minutes
         met = points[0][1] if speed < points[0][0] else points[-1][1]  # flat beyond the ends
         for (x0, y0), (x1, y1) in zip(points, points[1:]):
             if x0 <= speed < x1:

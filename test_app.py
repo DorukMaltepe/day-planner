@@ -219,6 +219,9 @@ assert activity(title="Schwimmen", minutes=40) == 150       # MET 6
 assert activity(title="Swimming", km=1) == 0                # no speed table for swimming: the time is needed
 assert activity(title="Walking", minutes=60, kcal=200) == 200  # an entered value wins
 assert c.post("/api/activities", json={"day": "2026-10-21", "title": "Walking", "minutes": 2000}).status_code == 400
+assert app_module.burn("Laufen gehen", 30, 0, 45) == 203    # running, not walking
+assert app_module.burn("Laufband gehen", 30, 0, 45) == 61   # a treadmill walk: walking at the usual 5 km/h
+assert app_module.burn("Walking", 0, 500, 45) == 2916       # a typo'd distance is capped at a day: 24 h at MET 3.7
 # a gym session is estimated from its sets: time by rep range, plus the lifted work
 assert c.post("/api/sets", json={"day": "2026-10-21", "exercise": "Deadlift", "weight": 100, "reps": 5}).status_code == 201
 assert c.post("/api/sets", json={"day": "2026-10-21", "exercise": "Pull-up", "reps": 12}).status_code == 201
