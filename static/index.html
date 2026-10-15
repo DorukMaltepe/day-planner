@@ -1,0 +1,1087 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Day Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f2f5f4; --surface: #fff; --ink: #17231f; --muted: #5a6863; --line: #d8e0dd;
+    --under: #0b7a6b; --over: #9e5f06; --bar: #a9b6b1;
+    --display: "Bricolage Grotesque", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper: #111816; --surface: #18211e; --ink: #e6edea; --muted: #97a6a0; --line: #2b3632;
+            --under: #4cc9b3; --over: #f0ae4a; --bar: #4a5853; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 "IBM Plex Sans", system-ui, sans-serif; background: var(--paper); color: var(--ink);
+         font-variant-numeric: tabular-nums; }
+  h1, h2, .brand { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; margin: 0; }
+  h1 { font-size: clamp(22px, 3.4vw, 30px); }
+  h2 { font-size: 20px; }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .under { color: var(--under); } .over { color: var(--over); }
+  .wrap { max-width: 1240px; margin: 0 auto; padding-left: 20px; padding-right: 20px; }
+
+  /* header, tabs, day bar */
+  .top .wrap { display: flex; align-items: center; gap: 32px; padding-top: 14px; }
+  .brand { font-size: 19px; font-weight: 800; }
+  .tabs { display: flex; gap: 4px; }
+  .tabs a { padding: 10px 14px; color: var(--muted); text-decoration: none; font-weight: 500; border-radius: 8px; }
+  .tabs a:hover { color: var(--ink); background: var(--surface); }
+  .tabs a[aria-current="page"] { color: var(--ink); background: var(--surface); box-shadow: inset 0 -2px 0 var(--ink); }
+  .daybar { position: sticky; top: 0; z-index: 5; background: var(--paper); border-bottom: 1px solid var(--line); }
+  .daybar .wrap { display: flex; align-items: center; gap: 8px; padding-top: 12px; padding-bottom: 12px; }
+  .daybar h1 { margin: 0 6px; }
+  .daybar .short { display: none; }
+  .round { width: 40px; padding: 0; border-radius: 50%; font-size: 18px; }
+  .badge { font-size: 13px; font-weight: 600; padding: 2px 10px; border-radius: 99px; border: 1px solid var(--line); }
+  .spacer { margin-left: auto; }
+  @media (max-width: 600px) {
+    body { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+    .wrap { padding-left: 16px; padding-right: 16px; }
+    .tabs { position: fixed; z-index: 10; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 0; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+    .tabs a { padding: 18px 0; text-align: center; border-radius: 0; }
+    .tabs a[aria-current="page"] { box-shadow: inset 0 2px 0 var(--ink); font-weight: 600; }
+    .daybar .wrap { gap: 6px; }
+    .daybar h1 { margin: 0 2px; font-size: 19px; }
+    .daybar .long { display: none; } .daybar .short { display: inline; }
+  }
+
+  main { padding-top: 24px; padding-bottom: 48px; }
+  .tab { display: grid; gap: 32px 40px; align-items: start; }
+  .tab.two { grid-template-columns: minmax(0, 1fr) minmax(0, 380px); }
+  .tab.planner { grid-template-columns: minmax(0, 380px) minmax(0, 1fr); }
+  .tab.sports { grid-template-columns: minmax(0, 380px) minmax(0, 1fr); grid-template-rows: auto auto 1fr;
+                grid-template-areas: "prog panel" "cal panel" "hist panel"; }
+  .sports .program { grid-area: prog; } .sports .cal-sec { grid-area: cal; }
+  .sports .panel { grid-area: panel; } .sports .side { grid-area: hist; }
+  @media (max-width: 900px) {
+    .tab.two, .tab.planner, .tab.sports { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+    .tab.sports { grid-template-rows: none; grid-template-areas: "prog" "cal" "panel" "hist"; }
+  }
+
+  /* controls */
+  input, select, button { font: inherit; }
+  input, select { width: 100%; min-height: 40px; padding: 8px 11px; color: var(--ink); background: var(--paper);
+                  border: 1px solid var(--line); border-radius: 8px; }
+  input:hover, select:hover { border-color: var(--bar); }
+  button { cursor: pointer; min-height: 40px; padding: 0 16px; border-radius: 8px; font-weight: 600;
+           border: 1px solid var(--ink); background: var(--ink); color: var(--surface); }
+  button:hover { opacity: .85; }
+  button.quiet { background: transparent; color: var(--ink); border-color: var(--line); }
+  button.quiet:hover { opacity: 1; border-color: var(--ink); }
+  button.del { min-height: 32px; width: 32px; padding: 0; border: 0; background: none; color: var(--muted);
+               font-weight: 400; border-radius: 6px; flex: none; }
+  button.del:hover { opacity: 1; color: var(--over); background: var(--paper); }
+  .add { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin-top: 12px; }
+  .field { display: grid; gap: 4px; flex: 1 1 160px; min-width: 0; font-size: 13px; color: var(--muted); }
+  .field.sm { flex: 0 1 110px; }
+  @media (max-width: 600px) {
+    .field:not(.sm) { flex-basis: 100%; }
+    .add button { flex: 1 1 auto; }
+  }
+
+  /* panels */
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 28px; }
+  .panel > section + section { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--line); }
+  @media (max-width: 600px) { .panel { padding: 20px 16px; border-radius: 12px; } }
+  .intro { margin: 4px 0 0; }
+
+  /* calendar */
+  .cal-head { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; }
+  .cal-head h2 { flex: 1; font-size: 24px; }
+  #grid, #sport-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+  .dow { text-align: center; font-size: 12px; color: var(--muted); padding-bottom: 4px; }
+  .cell { aspect-ratio: 1; position: relative; display: flex; flex-direction: column; justify-content: space-between;
+          align-items: flex-start; min-height: 0; padding: 5px 6px 7px; border: 0; border-radius: 6px;
+          background: var(--surface); color: var(--ink); font-weight: 400; text-align: left; overflow: hidden; }
+  .cell:hover { opacity: 1; box-shadow: inset 0 0 0 1px var(--bar); }
+  .cell .n { font-size: 13px; font-weight: 600; }
+  .cell .kc { font-size: 11px; color: var(--muted); }
+  .cell.all .kc { color: var(--ink); font-weight: 600; }
+  .cell .meter { position: absolute; left: 6px; right: 6px; bottom: 5px; height: 3px; border-radius: 2px; background: var(--line); }
+  .cell .meter i { display: block; height: 100%; border-radius: 2px; background: var(--ink); }
+  .cell.today .n { text-decoration: underline 2px; text-underline-offset: 3px; }
+  .cell .todo { position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--over); }
+  .cell.sel { outline: 2px solid var(--ink); outline-offset: 1px; }
+  .cell.wk { background: color-mix(in oklab, var(--ink) 9%, var(--surface)); }
+  .cell.wk .kc { color: var(--ink); font-weight: 600; }
+  .cell.logged, .cell.logged .kc { background: var(--ink); color: var(--surface); }
+  .legend { margin: 12px 0 0; }
+
+  /* plan and goals */
+  .progress-line { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .progress-line strong { font-family: var(--display); font-size: 26px; font-weight: 700; }
+  .meter-lg { height: 8px; border-radius: 4px; background: var(--paper); margin-top: 12px; overflow: hidden; }
+  .meter-lg i { display: block; height: 100%; background: var(--ink); transition: width .3s ease; }
+  .check { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; cursor: pointer; padding: 4px 0; }
+  .check input { width: 20px; height: 20px; min-height: 0; margin: 0; flex: none; accent-color: var(--ink); cursor: pointer; }
+  .check .time { font-size: 13px; color: var(--muted); min-width: 42px; }
+  .check.done .title { text-decoration: line-through; color: var(--muted); }
+
+  /* day schedule */
+  .sched-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .btn-link { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 8px; font-weight: 600;
+              color: var(--ink); text-decoration: none; border: 1px solid var(--line); }
+  .btn-link:hover { border-color: var(--ink); }
+  #wk-pending:not(:empty) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
+  .wk-chip { padding: 8px 14px; border-radius: 99px; font-weight: 600; cursor: grab;
+ background: var(--over); color: var(--surface); }
+  .timeline { list-style: none; padding: 0; margin: 12px 0 0; }
+  .timeline li { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 8px; align-items: center;
+                 min-height: 40px; border-top: 1px solid var(--line); }
+  .timeline li.drop-on { background: color-mix(in oklab, var(--over) 18%, var(--surface)); }
+  .timeline .hr { font-size: 12px; color: var(--muted); }
+  .timeline .evs { display: flex; flex-wrap: wrap; gap: 4px; }
+  .ev { font-size: 13px; padding: 2px 8px; border-radius: 6px; background: var(--paper); }
+  .ev.wk { background: var(--ink); color: var(--surface); }
+  .ev.done { text-decoration: line-through; opacity: .6; }
+  .timeline .drop { min-height: 30px; width: 30px; padding: 0; border-radius: 50%; font-weight: 400; color: var(--muted); }
+
+  /* program and scheduled workout */
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .choices { border: 0; padding: 0; margin: 12px 0 0; }
+  #program-choices { display: grid; gap: 8px; }
+  .choice { display: flex; gap: 12px; align-items: flex-start; padding: 12px; cursor: pointer;
+            background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+  .choice:has(input:checked) { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+  .choice input { width: 18px; height: 18px; min-height: 0; margin: 2px 0 0; flex: none; accent-color: var(--ink); }
+  .choice b { display: block; }
+  .choice .muted { display: block; margin-top: 2px; }
+  .group-h { font-family: inherit; font-size: 14px; font-weight: 600; margin: 18px 0 8px; }
+  .group-h:first-child { margin-top: 0; }
+  .preview { margin-top: 16px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+  .preview p { margin: 0; font-size: 14px; }
+  .week { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 3px; }
+  .week li { display: grid; gap: 2px; align-content: start; padding: 6px 4px; text-align: center; font-size: 12px;
+             color: var(--muted); background: var(--paper); border-radius: 6px; }
+  .week li b { font-size: 11px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+  .week li.rest b { font-weight: 400; color: var(--muted); }
+  .preview details { margin-top: 10px; }
+  .preview ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
+  .swap { margin-top: 4px; }
+  .swap summary { font-size: 13px; font-weight: 500; color: var(--muted); }
+  .swap summary:hover { color: var(--ink); }
+  .swap-list { display: grid; gap: 6px; margin-top: 8px; }
+  .swap-list button { display: grid; justify-items: start; gap: 0; min-height: 0; padding: 8px 12px; text-align: left; font-weight: 400; }
+  .swap-list b { font-weight: 600; }
+  .plan-ex { list-style: none; counter-reset: ex; padding: 0; margin: 12px 0 0; }
+  .plan-ex li { counter-increment: ex; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 6px 12px;
+                align-items: start; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .plan-ex li:last-child { border-bottom: 0; }
+  .plan-ex li::before { content: counter(ex); font-family: var(--display); font-weight: 700; font-size: 18px; color: var(--muted); }
+  .ex-main { display: grid; gap: 2px; }
+  .ex-main .last { font-size: 14px; }
+  .ex-side { display: grid; justify-items: end; gap: 4px; text-align: right; }
+  .ex-side .target { font-family: var(--display); font-weight: 700; font-size: 18px; white-space: nowrap; }
+  .ex-side button { min-height: 34px; padding: 0 12px; font-size: 14px; }
+  @media (max-width: 600px) {
+    .plan-ex li { grid-template-columns: 24px minmax(0, 1fr); }
+    .ex-side { grid-column: 2; grid-auto-flow: column; justify-content: start; align-items: center; gap: 12px; text-align: left; }
+  }
+
+  /* energy balance */
+  .balance { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px 12px; align-items: center; margin-top: 16px; }
+  .balance > span { color: var(--muted); font-size: 13px; }
+  .balance b { font-weight: 600; text-align: right; }
+  .track { height: 12px; border-radius: 6px; background: var(--paper); display: flex; overflow: hidden; }
+  .track i { height: 100%; transition: width .3s ease; }
+  #eat-bar { background: var(--ink); } #base-bar { background: var(--bar); } #act-bar { background: var(--muted); }
+  .net { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; margin: 16px 0 0; }
+  .net strong { font-family: var(--display); font-size: 28px; font-weight: 700; }
+  .macros { display: flex; flex-wrap: wrap; gap: 8px 32px; margin: 18px 0 0; }
+  .macros dt { font-size: 13px; color: var(--muted); }
+  .macros dd { margin: 0; font-weight: 600; }
+  .track.eat { position: relative; overflow: visible; }
+  #goal-mark { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--over); border-radius: 1px; }
+  .goal-line { margin: 10px 0 0; }
+  .goal-big { margin: 8px 0 4px; font-family: var(--display); font-size: 28px; font-weight: 700; }
+  .goal-text { margin: 0; max-width: 62ch; }
+  .goal-text + .goal-text { margin-top: 8px; }
+  #goal-details { margin-top: 14px; }
+  .goal-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 8px; }
+  .legend-label { font-size: 13px; color: var(--muted); padding: 0; }
+
+  /* lists and tables */
+  table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 14px; }
+  th { font-weight: 500; font-size: 13px; color: var(--muted); }
+  th, td { text-align: right; padding: 8px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; white-space: normal; padding-left: 0; }
+  tfoot td { font-weight: 600; border-bottom: 0; }
+  .meals td:last-child { width: 1%; padding: 0; }
+  td.empty { color: var(--muted); white-space: normal; padding: 12px 0; }
+  .table-wrap { overflow-x: auto; }
+  .list { list-style: none; padding: 0; margin: 12px 0 0; }
+  .list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0;
+             border-bottom: 1px solid var(--line); }
+  .list li:last-child { border-bottom: 0; }
+  .end { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .empty { color: var(--muted); font-size: 14px; }
+  .list li.empty { padding: 8px 0; }
+  .ex { padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .ex:last-child { border-bottom: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .chip { display: inline-flex; align-items: center; padding-left: 12px; font-size: 14px;
+          background: var(--paper); border: 1px solid var(--line); border-radius: 99px; }
+  .chip .del { min-height: 28px; width: 30px; border-radius: 99px; }
+  details { margin-top: 16px; }
+  summary { cursor: pointer; font-size: 14px; font-weight: 500; }
+  details form { margin-top: 4px; }
+
+  /* progress */
+  .side .field { margin-top: 12px; }
+  .chg { font-size: 12px; color: var(--muted); margin-left: 4px; }
+  .chart { display: block; margin-top: 16px; }
+  .chart text { fill: var(--muted); font-size: 11px; }
+  .chart .grid { stroke: var(--line); stroke-width: 1; }
+  .chart .dot { outline: none; }
+  .chart .dot circle:last-child { fill: var(--ink); stroke: var(--paper); stroke-width: 2; transition: r .1s; }
+  .chart .dot:hover circle:last-child, .chart .dot:focus circle:last-child { r: 7; }
+
+  #toast { position: fixed; z-index: 20; left: 50%; bottom: 24px; transform: translate(-50%, 16px); opacity: 0; pointer-events: none;
+           max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 10px; font-size: 14px;
+           background: var(--ink); color: var(--surface); transition: opacity .2s, transform .2s; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #toast.err { background: var(--over); }
+  @media (max-width: 600px) { #toast { bottom: calc(80px + env(safe-area-inset-bottom)); } }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <span class="brand">Day Planner</span>
+    <nav class="tabs" aria-label="Sections">
+      <a href="#planner" data-tab="planner">Planner</a>
+      <a href="#sports" data-tab="sports">Sports</a>
+      <a href="#myself" data-tab="myself">Myself</a>
+    </nav>
+  </div>
+</header>
+
+<div class="daybar">
+  <div class="wrap">
+    <button id="prev-day" class="quiet round" aria-label="Previous day">‹</button>
+    <h1 id="day-label" aria-live="polite"></h1>
+    <button id="next-day" class="quiet round" aria-label="Next day">›</button>
+    <span id="today-badge" class="badge" hidden>Today</span>
+    <span class="spacer"></span>
+    <button id="today" class="quiet">Go to today</button>
+  </div>
+</div>
+
+<main class="wrap">
+  <!-- Planner: calendar + plan and goals for the selected day -->
+  <div class="tab planner" id="tab-planner">
+    <section aria-labelledby="month-label">
+      <div class="cal-head">
+        <h2 id="month-label" class="month-label"></h2>
+        <button data-month="-1" class="quiet round" aria-label="Previous month">‹</button>
+        <button data-month="1" class="quiet round" aria-label="Next month">›</button>
+      </div>
+      <div id="grid"></div>
+      <p class="legend muted">Each day shows how much of its plan and goals you ticked off. An amber dot marks a program workout that still needs a time.</p>
+    </section>
+
+    <article class="panel" id="day-panel">
+      <section aria-label="Progress today">
+        <div class="progress-line"><strong id="task-count"></strong><span id="task-note" class="muted"></span></div>
+        <div class="meter-lg"><i id="task-bar"></i></div>
+      </section>
+
+      <section aria-labelledby="plan-h">
+        <h2 id="plan-h">Plan</h2>
+        <form id="plan-form" class="add">
+          <label class="field">What's planned?
+            <input id="plan-title" list="plan-list" placeholder="e.g. Groceries, call the bank" required>
+          </label>
+          <label class="field sm">Time
+            <input id="plan-time" type="time">
+          </label>
+          <datalist id="plan-list">
+            <option>Groceries</option><option>Wash the dishes</option><option>Clean the house</option>
+            <option>Read a book</option><option>Write code</option><option>Apply for jobs</option>
+          </datalist>
+          <button>Add to plan</button>
+        </form>
+        <ul id="plan" class="list"></ul>
+      </section>
+
+      <section aria-labelledby="sched-h">
+        <div class="sched-head">
+          <h2 id="sched-h">Schedule</h2>
+          <a id="export" class="btn-link" hidden>Export to calendar</a>
+        </div>
+        <p class="muted intro">Timed items as calendar events, one hour each. On iPhone, open the export in Safari and tap Add All.</p>
+        <div id="wk-pending"></div>
+        <ol id="timeline" class="timeline"></ol>
+      </section>
+
+      <section aria-labelledby="goals-h">
+        <h2 id="goals-h">Goals</h2>
+        <form id="goal-form" class="add">
+          <label class="field">Goal for the day
+            <input id="goal-title" placeholder="e.g. Drink 2 L of water" required>
+          </label>
+          <button>Add goal</button>
+        </form>
+        <ul id="goals" class="list"></ul>
+      </section>
+    </article>
+  </div>
+
+  <!-- Sports: workout program and its calendar, logged sets, calorie-burning activities, exercise progress -->
+  <div class="tab sports" id="tab-sports" hidden>
+    <section class="program" aria-labelledby="program-h">
+      <h2 id="program-h">Program</h2>
+      <p id="program-status" class="muted intro"></p>
+      <details id="program-picker">
+        <summary id="program-summary"></summary>
+        <form id="program-form">
+          <fieldset class="choices"><legend class="sr">Workout program</legend><div id="program-choices"></div></fieldset>
+          <div class="add">
+            <label class="field">Start on <input id="program-start" type="date" required></label>
+            <button>Save program</button>
+          </div>
+        </form>
+      </details>
+    </section>
+
+    <section class="cal-sec" aria-labelledby="sport-month-label">
+      <div class="cal-head">
+        <h2 id="sport-month-label" class="month-label"></h2>
+        <button data-month="-1" class="quiet round" aria-label="Previous month">‹</button>
+        <button data-month="1" class="quiet round" aria-label="Next month">›</button>
+      </div>
+      <div id="sport-grid"></div>
+      <p class="legend muted">Light days are scheduled sessions; dark days have logged sets. Pick a day to see its workout.</p>
+    </section>
+
+    <article class="panel" id="sports-panel">
+      <section id="workout" aria-live="polite"></section>
+
+      <section aria-labelledby="set-h">
+        <h2 id="set-h">Logged sets</h2>
+        <form id="set-form" class="add">
+          <label class="field">Exercise
+            <input id="exercise" list="exercise-list" placeholder="e.g. Bench press" required>
+          </label>
+          <datalist id="exercise-list"></datalist>
+          <label class="field sm">kg
+            <input id="weight" type="number" min="0" step="any" placeholder="0">
+          </label>
+          <label class="field sm">Reps
+            <input id="reps" type="number" min="1" step="1" required>
+          </label>
+          <button>Add set</button>
+        </form>
+        <div id="sets"></div>
+      </section>
+
+      <section aria-labelledby="act-h">
+        <h2 id="act-h">Activities</h2>
+        <p class="muted intro">Calories burned here count toward your energy balance in Myself.</p>
+        <form id="activity-form" class="add">
+          <label class="field">Activity
+            <input id="title" list="activity-list" placeholder="e.g. Gym, Running, Walking" required>
+          </label>
+          <datalist id="activity-list">
+            <option>Gym</option><option>Running</option><option>Walking</option><option>Cycling</option><option>Swimming</option>
+          </datalist>
+          <label class="field sm">kcal burned
+            <input id="act-kcal" type="number" min="0" step="any" placeholder="optional">
+          </label>
+          <button>Add activity</button>
+        </form>
+        <ul id="activities" class="list"></ul>
+      </section>
+    </article>
+
+    <aside class="side" aria-labelledby="ex-prog-h">
+      <h2 id="ex-prog-h">Exercise progress</h2>
+      <label class="field">Exercise
+        <select id="ex-pick"></select>
+      </label>
+      <div id="ex-progress" class="table-wrap"></div>
+    </aside>
+  </div>
+
+  <!-- Myself: energy balance, food, body measurements -->
+  <div class="tab two" id="tab-myself" hidden>
+    <article class="panel">
+      <section aria-labelledby="bal-h">
+        <h2 id="bal-h">Energy balance</h2>
+        <div class="balance">
+          <span>Eaten</span><div class="track eat"><i id="eat-bar"></i><i id="goal-mark" title="Your daily goal" hidden></i></div><b><span id="eaten"></span> kcal</b>
+          <span>Burned</span><div class="track"><i id="base-bar"></i><i id="act-bar"></i></div><b><span id="burned"></span> kcal</b>
+        </div>
+        <p class="net"><strong id="net"></strong><span id="net-note" class="muted"></span></p>
+        <p id="goal-line" class="goal-line" hidden></p>
+        <dl id="macros" class="macros"></dl>
+      </section>
+
+      <section aria-labelledby="goal-h">
+        <h2 id="goal-h">Your goal</h2>
+        <div id="goal-summary"></div>
+        <details id="goal-details">
+          <summary></summary>
+          <form id="profile-form">
+            <fieldset class="choices">
+              <legend class="legend-label">What do you want to achieve?</legend>
+              <div class="goal-choices">
+                <label class="choice"><input type="radio" name="goal" value="lose" required>
+                  <span><b>Lose weight</b><span class="muted">Eat 20% below maintenance, roughly 0.5 kg a week.</span></span></label>
+                <label class="choice"><input type="radio" name="goal" value="recomp">
+                  <span><b>Lose fat and build muscle</b><span class="muted">A small 10% deficit, paired with strength training.</span></span></label>
+                <label class="choice"><input type="radio" name="goal" value="gain">
+                  <span><b>Build muscle</b><span class="muted">A lean 10% surplus to fuel growth without much fat.</span></span></label>
+                <label class="choice"><input type="radio" name="goal" value="maintain">
+                  <span><b>Stay where I am</b><span class="muted">Eat at maintenance.</span></span></label>
+              </div>
+            </fieldset>
+            <div class="add">
+              <label class="field sm">Sex
+                <select name="sex" required><option value="">Choose</option><option value="female">Female</option><option value="male">Male</option></select>
+              </label>
+              <label class="field sm">Age <input name="age" type="number" min="14" max="100" step="1" required></label>
+              <label class="field sm">Height, cm <input name="height" type="number" min="100" max="250" step="any" required></label>
+              <label class="field sm">Weight, kg <input name="weight" type="number" min="30" max="300" step="any" required></label>
+            </div>
+            <div class="add">
+              <label class="field">How active are you, including work and training?
+                <select name="activity" required>
+                  <option value="">Choose</option>
+                  <option value="sedentary">Mostly sitting, little or no exercise</option>
+                  <option value="light">Light: exercise 1 to 3 days a week</option>
+                  <option value="moderate">Moderate: exercise 3 to 5 days a week</option>
+                  <option value="active">Active: hard exercise 6 to 7 days a week</option>
+                  <option value="very_active">Very active: physical job plus training</option>
+                </select>
+              </label>
+            </div>
+            <p class="muted">Sex, age, height and weight go into the Mifflin-St Jeor formula for your BMR, the calories your body uses at rest.</p>
+            <div class="add"><button>Calculate my goal</button></div>
+          </form>
+        </details>
+      </section>
+
+      <section aria-labelledby="food-h">
+        <h2 id="food-h">Food</h2>
+        <form id="meal-form" class="add">
+          <label class="field">Food
+            <input id="food" list="food-list" placeholder="Search, e.g. banana" autocomplete="off" required>
+          </label>
+          <datalist id="food-list"></datalist>
+          <label class="field sm">Grams
+            <input id="grams" type="number" min="1" step="any" required aria-describedby="food-hint">
+          </label>
+          <button>Add food</button>
+        </form>
+        <p id="food-hint" class="muted" aria-live="polite"></p>
+        <div class="table-wrap">
+          <table class="meals">
+            <thead><tr><th>Food</th><th>g</th><th>kcal</th><th>Protein</th><th>Carbs</th><th>Fat</th><th><span hidden>Delete</span></th></tr></thead>
+            <tbody id="meals"></tbody>
+            <tfoot id="meal-totals"></tfoot>
+          </table>
+        </div>
+        <details id="new-food">
+          <summary>Can't find a food? Add it to the database</summary>
+          <form id="food-form">
+            <p class="muted">Enter values per 100 g (or 100 ml), as printed on the label.</p>
+            <div class="add">
+              <label class="field">Name <input name="name" required></label>
+              <label class="field sm">kcal <input name="kcal" type="number" step="any" min="0" required></label>
+            </div>
+            <div class="add">
+              <label class="field sm">Protein g <input name="protein" type="number" step="any" min="0"></label>
+              <label class="field sm">Carbs g <input name="carbs" type="number" step="any" min="0"></label>
+              <label class="field sm">Fat g <input name="fat" type="number" step="any" min="0"></label>
+              <label class="field sm">Fiber g <input name="fiber" type="number" step="any" min="0"></label>
+            </div>
+            <div class="add"><button>Save to database</button></div>
+          </form>
+        </details>
+      </section>
+
+      <section aria-labelledby="measure-h">
+        <h2 id="measure-h">Body measurements</h2>
+        <form id="measure-form" class="add">
+          <label class="field">Measurement
+            <input id="kind" list="measure-list" placeholder="e.g. Weight (kg)" required>
+          </label>
+          <datalist id="measure-list"></datalist>
+          <label class="field sm">Value
+            <input id="value" type="number" min="0" step="any" required>
+          </label>
+          <button>Add measurement</button>
+        </form>
+        <ul id="measurements" class="list"></ul>
+      </section>
+    </article>
+
+    <aside class="side" aria-labelledby="body-prog-h">
+      <h2 id="body-prog-h">Body progress</h2>
+      <label class="field">Measurement
+        <select id="body-pick"></select>
+      </label>
+      <div id="body-progress" class="table-wrap"></div>
+    </aside>
+  </div>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="programs.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+const pad = n => String(n).padStart(2, '0');
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const fmt = n => Math.round(n).toLocaleString();
+const signed = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
+const balance = net => net ? `${fmt(Math.abs(net))} kcal ${net > 0 ? 'over' : 'under'}` : 'Even';
+const longDate = (key, opts) => new Date(key + 'T00:00').toLocaleDateString(undefined, opts);
+const shortDate = key => longDate(key, { day: 'numeric', month: 'short', year: 'numeric' });
+const motion = () => matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+
+const today = iso(new Date());
+let selected = today, month = today.slice(0, 7), foods = {};
+
+let toastTimer;
+function toast(msg, isError) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'show' + (isError ? ' err' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.className = '', isError ? 5000 : 2500);
+}
+
+async function api(path, method = 'GET', body) {
+  const r = await fetch('/api/' + path, {
+    method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body),
+  });
+  if (!r.ok) {
+    const msg = (await r.json().catch(() => ({}))).error || r.statusText;
+    toast(msg.charAt(0).toUpperCase() + msg.slice(1) + '.', true);
+    throw new Error(msg);
+  }
+  return r.status === 204 ? null : r.json();
+}
+
+// --- tabs: the URL hash picks the tab, so reload and the back button keep it ---
+const TABS = ['planner', 'sports', 'myself'];
+function showTab() {
+  const name = TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'planner';
+  TABS.forEach(t => $('#tab-' + t).hidden = t !== name);
+  document.querySelectorAll('[data-tab]').forEach(a =>
+    a.dataset.tab === name ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
+  renderProgress('exercise'); renderProgress('measurement');  // charts size to the now-visible panel
+}
+addEventListener('hashchange', showTab);
+
+// --- workout program ---
+let program = {}, swaps = {};  // { program: id, start: day } and { "program:workout:index": exercise } from the API
+const activeProgram = () => PROGRAMS.find(p => p.id === program.program);
+function workoutFor(key) {
+  const def = activeProgram();
+  if (!def || key < program.start) return null;
+  const s = def.schedule;
+  const id = Array.isArray(s) ? s[Math.round((Date.parse(key) - Date.parse(program.start)) / 864e5) % s.length]
+                              : s[new Date(key + 'T00:00').getDay()];
+  return id ? { ...def.workouts[id], slot: `${def.id}:${id}` } : null;
+}
+
+const WEEK = [1, 2, 3, 4, 5, 6, 0], DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+function renderPreview(id) {
+  $('#program-preview')?.remove();
+  const def = PROGRAMS.find(p => p.id === id);
+  if (!def) return;
+  const s = def.schedule, days = Array.isArray(s) ? s.map((w, i) => [`Day ${i + 1}`, w]) : WEEK.map(d => [DAY_NAMES[d], s[d]]);
+  // shown right under the picked program, so it is in view without scrolling
+  $(`input[name=program][value="${id}"]`).closest('.choice').insertAdjacentHTML('afterend',
+    `<div id="program-preview" class="preview"><p>${esc(def.why)}</p>` +
+    `<ol class="week" style="grid-template-columns:repeat(${days.length},minmax(0,1fr))" aria-label="${Array.isArray(s) ? 'Repeating cycle' : 'Week'}">` +
+    days.map(([label, w]) => `<li class="${w ? '' : 'rest'}">${label}<b>${w ? esc(def.workouts[w].name) : 'Rest'}</b></li>`).join('') + '</ol>' +
+    (Array.isArray(s) ? '<p class="muted" style="margin-top:6px">The cycle repeats from your start date.</p>' : '') +
+    Object.values(def.workouts).map(w => `<details><summary>${esc(w.name)}: ${esc(w.focus.toLowerCase())}</summary><ul>` +
+      w.exercises.map(([name, sets, reps]) => `<li>${esc(name)}, ${sets} × ${reps}</li>`).join('') + '</ul></details>').join('') +
+    '</div>');
+}
+
+async function loadProgram() {
+  [program, swaps] = await Promise.all([api('program'), api('swaps')]);
+  const def = activeProgram();
+  $('#program-status').innerHTML = def ? `<b>${esc(def.name)}</b>, started ${shortDate(program.start)}.` :
+    'No program yet. Choose one to see your sessions on the calendar.';
+  $('#program-summary').textContent = def ? 'Change program' : 'Choose a program';
+  $('#program-picker').open = !def;
+  const choice = (id, name, about) =>
+    `<label class="choice"><input type="radio" name="program" value="${id}" required${id === (def?.id || '') ? ' checked' : ''}>` +
+    `<span><b>${esc(name)}</b><span class="muted">${esc(about)}</span></span></label>`;
+  $('#program-choices').innerHTML = [...new Set(PROGRAMS.map(p => p.type))].map(type =>
+    `<h3 class="group-h">${esc(type)}</h3>` + PROGRAMS.filter(p => p.type === type).map(p => choice(p.id, p.name, p.about)).join('')
+  ).join('') + '<h3 class="group-h">None</h3>' + choice('', 'No program', 'Log workouts freely, without a schedule.');
+  renderPreview(def?.id);
+  $('#program-start').value = program.start || today;
+}
+
+// "60 kg × 8, 8, 7; 55 kg × 10": consecutive sets at the same weight share one entry
+const setsText = sets => sets.reduce((out, s) => {
+  const g = out.at(-1);
+  g && g.w === s.weight ? g.r.push(s.reps) : out.push({ w: s.weight, r: [s.reps] });
+  return out;
+}, []).map(g => g.w ? `${g.w} kg × ${g.r.join(', ')}` : `${g.r.join(', ')} reps`).join('; ');
+
+async function renderWorkout(d) {
+  const day = selected, w = workoutFor(day), out = $('#workout');
+  if (!w) {
+    const def = activeProgram();
+    out.innerHTML = !def ? '<h2>No program yet</h2><p class="empty">Choose a program to see each day\'s workout here.</p>' :
+      day < program.start ? `<h2>Before your program</h2><p class="empty">${esc(def.name)} starts on ${shortDate(program.start)}.</p>` :
+      '<h2>Rest day</h2><p class="empty">No session scheduled. Recovery is when your muscles grow; a walk or some stretching is enough.</p>';
+    return;
+  }
+  // swapped exercises replace the program's default in this slot, for history and logging too
+  const exercises = w.exercises.map(([orig, sets, reps], i) =>
+    ({ orig, sets, reps, slot: `${w.slot}:${i}`, name: swaps[`${w.slot}:${i}`] || orig }));
+  const last = await api(`last-sets?before=${day}&` + exercises.map(e => 'name=' + encodeURIComponent(e.name)).join('&'));
+  if (day !== selected) return;  // the user moved on while this loaded
+  const logged = name => d.sets.filter(s => s.exercise.toLowerCase() === name.toLowerCase()).length;
+  out.innerHTML = `<h2>${esc(w.name)}</h2><p class="muted intro">${esc(w.focus)}, ${w.exercises.length} exercises.</p><ol class="plan-ex">` +
+    exercises.map(({ orig, sets, reps, slot, name }) => {
+      const l = last[name], n = logged(name), options = EXERCISES[orig].group.filter(([alt]) => alt !== name);
+      return `<li><div class="ex-main"><b>${esc(name)}</b><span class="muted">${esc(EXERCISES[name]?.gear || '')}</span>` +
+        `<span class="last">${l ? `Last time, ${shortDate(l.day)}: ${setsText(l.sets)}` : '<span class="muted">No history yet</span>'}</span>` +
+        (options.length ? `<details class="swap"><summary>${name === orig ? 'Swap exercise' : `Swapped in for ${esc(orig)}`}</summary>` +
+          '<div class="swap-list">' + options.map(([alt, gear]) =>
+            `<button type="button" class="quiet" data-slot="${slot}" data-to="${esc(alt === orig ? '' : alt)}">` +
+            `<b>${esc(alt)}${alt === orig ? ', the program default' : ''}</b><span class="muted">${esc(gear)}</span></button>`).join('') +
+          '</div></details>' : '') + '</div>' +
+        `<div class="ex-side"><span class="target">${sets} × ${reps}</span>` +
+        `<span class="muted">${n ? `${n} of ${sets} sets logged` : ''}</span>` +
+        `<button class="quiet" data-log="${esc(name)}" data-weight="${l ? Math.max(...l.sets.map(s => s.weight)) || '' : ''}">Log a set</button></div></li>`;
+    }).join('') + '</ol>';
+}
+
+async function renderMonth() {
+  const data = await api('month/' + month);
+  const [y, m] = month.split('-').map(Number);
+  const first = new Date(y, m - 1, 1);
+  document.querySelectorAll('.month-label').forEach(h =>
+    h.textContent = first.toLocaleString(undefined, { month: 'long', year: 'numeric' }));
+  // info(day key, month stats) -> { cls, label, html } for what this calendar shows inside each day
+  const grid = info => {
+    const cells = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map(d => `<div class="dow" aria-hidden="true">${d}</div>`);
+    for (let i = 0; i < (first.getDay() + 6) % 7; i++) cells.push('<div></div>');
+    for (let d = 1; d <= new Date(y, m, 0).getDate(); d++) {
+      const key = `${month}-${pad(d)}`, { cls = '', label = '', html = '' } = info(key, data[key] || {});
+      cells.push(`<button class="cell${cls}${key === selected ? ' sel' : ''}${key === today ? ' today' : ''}" data-day="${key}" ` +
+        `aria-label="${longDate(key, { weekday: 'long', day: 'numeric', month: 'long' })}${label}" aria-pressed="${key === selected}"` +
+        `${key === today ? ' aria-current="date"' : ''}><span class="n">${d}</span>${html}</button>`);
+    }
+    return cells.join('');
+  };
+  $('#grid').innerHTML = grid((key, s) => {
+    const total = s.tasks || 0, done = s.tasks_done || 0, w = workoutFor(key);
+    // the program's workout still needs a time; past days are left alone
+    const todo = w && !s.workouts && key >= today, html = todo ? '<span class="todo"></span>' : '';
+    const label = todo ? `, ${w.name} workout to schedule` : '';
+    return total ? { cls: done === total ? ' all' : '', label: `, ${done} of ${total} done${label}`,
+      html: `<span class="kc">${done}/${total}</span><span class="meter"><i style="width:${done / total * 100}%"></i></span>${html}` } :
+      { label, html };
+  });
+  $('#sport-grid').innerHTML = grid((key, s) => {
+    const w = workoutFor(key), name = w ? w.name : 'Workout';
+    return w || s.sets ? { cls: (w ? ' wk' : '') + (s.sets ? ' logged' : ''), label: `, ${name}${s.sets ? ', sets logged' : ''}`,
+      html: `<span class="kc">${s.sets ? '✓ ' : ''}${w ? name : ''}</span>` } : {};
+  });
+}
+
+async function renderDay() {
+  const d = await api('day/' + selected);
+  $('#day-label').innerHTML =
+    `<span class="long">${longDate(selected, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>` +
+    `<span class="short">${longDate(selected, { weekday: 'short', day: 'numeric', month: 'short' })}</span>`;
+  $('#today-badge').hidden = selected !== today;
+  $('#today').hidden = selected === today;
+  const del = (type, id, what) =>
+    `<button class="del" data-del="${type}/${id}" aria-label="Delete ${esc(what)}" title="Delete">✕</button>`;
+
+  // planner
+  const done = d.tasks.filter(t => t.done).length, total = d.tasks.length;
+  $('#task-count').textContent = total ? `${done} of ${total} done` : 'Nothing planned yet';
+  $('#task-note').textContent = !total ? 'Add your plan and goals for the day below.' :
+    done === total ? 'Everything is ticked off.' : `${total - done} still open.`;
+  $('#task-bar').style.width = total ? done / total * 100 + '%' : '0';
+  const item = t => `<li><label class="check${t.done ? ' done' : ''}"><input type="checkbox" data-task="${t.id}"${t.done ? ' checked' : ''}>` +
+    (t.kind !== 'goal' ? `<span class="time">${t.time || ''}</span>` : '') +
+    `<span class="title">${esc(t.title)}</span></label>${del('tasks', t.id, t.title)}</li>`;
+  $('#plan').innerHTML = d.tasks.filter(t => t.kind !== 'goal').map(item).join('') ||
+    '<li class="empty">No plan yet. Add what you want to get done, with a time if it has one.</li>';
+  $('#goals').innerHTML = d.tasks.filter(t => t.kind === 'goal').map(item).join('') ||
+    '<li class="empty">No goals yet. Add something you want to hit today, like 10,000 steps.</li>';
+
+  // schedule: timed items on an hour grid; the program's workout waits above it until it gets an hour
+  const w = workoutFor(selected), timed = d.tasks.filter(t => t.time), hourOf = t => +t.time.slice(0, 2);
+  pending = w && !d.tasks.some(t => t.kind === 'workout') ? `${w.name} workout` : null;
+  $('#wk-pending').innerHTML = pending ? `<span class="wk-chip" draggable="true">${esc(pending)}</span>` +
+    '<span class="muted">Needs a time. Drag it onto an hour, or tap that hour\'s +.</span>' : '';
+  const hours = [], from = Math.min(6, ...timed.map(hourOf)), to = Math.max(22, ...timed.map(hourOf));
+  for (let h = from; h <= to; h++) {
+    const at = pad(h) + ':00';
+    hours.push(`<li data-hour="${h}"><span class="hr">${at}</span><span class="evs">` +
+      timed.filter(t => hourOf(t) === h).map(t =>
+        `<span class="ev${t.kind === 'workout' ? ' wk' : ''}${t.done ? ' done' : ''}">${t.time} ${esc(t.title)}</span>`).join('') +
+      '</span>' + (pending ? `<button type="button" class="quiet drop" data-at="${at}" aria-label="Schedule ${esc(pending)} at ${at}">+</button>` : '') +
+      '</li>');
+  }
+  $('#timeline').innerHTML = hours.join('');
+  $('#export').hidden = !timed.length;
+  $('#export').href = `/api/calendar/${selected}.ics`;
+
+  // sports
+  const groups = {};
+  d.sets.forEach(s => (groups[s.exercise.toLowerCase()] ??= { name: s.exercise, sets: [] }).sets.push(s));
+  $('#sets').innerHTML = Object.values(groups).map(g =>
+    `<div class="ex"><b>${esc(g.name)}</b> <span class="muted">${g.sets.length} ${g.sets.length === 1 ? 'set' : 'sets'}</span><div class="chips">` +
+    g.sets.map(s => `<span class="chip">${s.weight ? `${s.weight} kg × ${s.reps}` : `${s.reps} reps`}` +
+      `${del('sets', s.id, `${g.name} set`)}</span>`).join('') +
+    '</div></div>'
+  ).join('') || '<p class="empty">No sets yet. Add one set at a time; the exercise and weight stay filled in for the next set.</p>';
+  renderWorkout(d);
+  $('#activities').innerHTML = d.activities.map(a =>
+    `<li><span>${esc(a.title)}</span><span class="end">${a.kcal ? `<span class="muted">${fmt(a.kcal)} kcal burned</span>` : ''}` +
+    `${del('activities', a.id, a.title)}</span></li>`
+  ).join('') || '<li class="empty">No activities yet. Log a run, a walk or a gym session.</li>';
+
+  // myself
+  const eaten = d.totals.kcal, burned = d.base_burn + d.activity_burn, goal = d.goal_kcal;
+  const max = Math.max(eaten, burned, goal || 0) || 1;
+  $('#goal-mark').hidden = $('#goal-line').hidden = !goal;
+  if (goal) {
+    $('#goal-mark').style.left = goal / max * 100 + '%';
+    $('#goal-line').innerHTML = eaten <= goal ?
+      `<strong>${fmt(goal - eaten)} kcal left</strong> <span class="muted">of your ${fmt(goal)} kcal goal for today.</span>` :
+      `<strong class="over">${fmt(eaten - goal)} kcal over</strong> <span class="muted">your ${fmt(goal)} kcal goal for today.</span>`;
+  }
+  $('#eat-bar').style.width = eaten / max * 100 + '%';
+  $('#base-bar').style.width = d.base_burn / max * 100 + '%';
+  $('#act-bar').style.width = d.activity_burn / max * 100 + '%';
+  $('#eaten').textContent = fmt(eaten);
+  $('#burned').textContent = fmt(burned);
+  // with no food logged the balance is just "minus base burn", which reads as a false win
+  $('#net').textContent = d.meals.length ? balance(d.net) : 'Nothing eaten yet';
+  $('#net').className = !d.meals.length ? '' : d.net > 0 ? 'over' : d.net < 0 ? 'under' : '';
+  $('#net-note').textContent = d.base_burn ?
+    `Burned is ${fmt(d.base_burn)} base plus ${fmt(d.activity_burn)} from activities.` :
+    'Fill in "Your goal" below to estimate what your body uses at rest.';
+  $('#macros').innerHTML = [['Protein', 'protein'], ['Carbs', 'carbs'], ['Fat', 'fat'], ['Fiber', 'fiber']]
+    .map(([label, k]) => `<div><dt>${label}</dt><dd>${d.totals[k]} g</dd></div>`).join('');
+  $('#meals').innerHTML = d.meals.map(m =>
+    `<tr><td>${esc(m.name)}</td><td>${m.grams}</td><td>${m.kcal}</td><td>${m.protein}</td><td>${m.carbs}</td><td>${m.fat}</td>` +
+    `<td>${del('meals', m.id, m.name)}</td></tr>`
+  ).join('') || '<tr><td colspan="7" class="empty">No food logged for this day. Search for a food above to add it.</td></tr>';
+  $('#meal-totals').innerHTML = d.meals.length ?
+    `<tr><td>Total</td><td></td><td>${d.totals.kcal}</td><td>${d.totals.protein}</td><td>${d.totals.carbs}</td><td>${d.totals.fat}</td><td></td></tr>` : '';
+  $('#measurements').innerHTML = d.measurements.map(m =>
+    `<li><span>${esc(m.kind)}</span><span class="end"><b>${m.value}</b>${del('measurements', m.id, m.kind)}</span></li>`
+  ).join('') || '<li class="empty">No measurements yet. Weigh-ins and tape measurements show up in Body progress.</li>';
+}
+
+const MEASURES = ['Weight (kg)', 'Body fat (%)', 'Waist (cm)', 'Chest (cm)', 'Hips (cm)', 'Arm (cm)', 'Thigh (cm)', 'Neck (cm)'];
+const options = list => list.map(x => `<option value="${esc(x)}">`).join('');
+const PROGRESS = { exercise: ['#ex-pick', '#ex-progress', 'exercise'], measurement: ['#body-pick', '#body-progress', 'measurement'] };
+
+async function renderNames() {
+  const n = await api('names');
+  $('#exercise-list').innerHTML = options(n.exercises);
+  $('#measure-list').innerHTML = options([...new Set([...MEASURES, ...n.measurements])]);
+  for (const [type, list] of [['exercise', n.exercises], ['measurement', n.measurements]]) {
+    const pick = $(PROGRESS[type][0]), current = pick.value;
+    pick.innerHTML = `<option value="">Choose an ${PROGRESS[type][2]}</option>` +
+      list.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('');
+    pick.value = current;
+    if (!pick.value && list.length) pick.selectedIndex = 1;  // show something instead of an empty panel
+    renderProgress(type);
+  }
+}
+
+async function renderProgress(type) {
+  const [pickSel, outSel] = PROGRESS[type], name = $(pickSel).value, out = $(outSel);
+  if (out.offsetParent === null) return;  // tab hidden; showTab renders it when opened
+  if (!name) return out.innerHTML = type === 'exercise' ?
+    '<p class="empty">Log workout sets to see how your lifts change over time.</p>' :
+    '<p class="empty">Log body measurements to see how they change over time.</p>';
+  const rows = await api(`history/${type}?name=` + encodeURIComponent(name));
+  // rows are newest first, so the previous session is the next row
+  const change = (k, idx) => {
+    const diff = rows[idx + 1] ? +(rows[idx][k] - rows[idx + 1][k]).toFixed(1) : 0;
+    return diff ? `<span class="chg">${signed(diff)}</span>` : '';
+  };
+  out.innerHTML = type === 'exercise' ?
+    '<table><thead><tr><th>Day</th><th>Sets</th><th>Reps</th><th>Top kg</th><th>Volume</th><th>Est. 1RM</th></tr></thead><tbody>' +
+    rows.map((r, idx) => `<tr><td>${shortDate(r.day)}</td><td>${r.sets}</td><td>${r.reps}</td><td>${r.best}${change('best', idx)}</td>` +
+      `<td>${r.volume}${change('volume', idx)}</td><td>${r.e1rm}${change('e1rm', idx)}</td></tr>`).join('') +
+    '</tbody></table><p class="muted">Volume is kg × reps, summed. Est. 1RM is your estimated one-rep max (Epley formula). Small numbers show the change since the previous session.</p>' :
+    dotChart(rows, out.clientWidth) + '<table><thead><tr><th>Day</th><th>Value</th></tr></thead><tbody>' +
+    rows.map((r, idx) => `<tr><td>${shortDate(r.day)}</td><td>${r.value}${change('value', idx)}</td></tr>`).join('') +
+    '</tbody></table>';
+}
+$('#ex-pick').addEventListener('change', () => renderProgress('exercise'));
+$('#body-pick').addEventListener('change', () => renderProgress('measurement'));
+
+// Dots only where a value was entered; x is real time, so gaps between entries show as gaps.
+function dotChart(rows, width) {
+  const W = width || 360, H = 200, L = 44, R = 14, T = 14, B = 26;
+  const pts = rows.map(r => ({ t: Date.parse(r.day), v: r.value, day: r.day })).reverse();
+  const t0 = pts[0].t, t1 = pts.at(-1).t, vals = pts.map(p => p.v);
+  const pad = (Math.max(...vals) - Math.min(...vals)) * 0.1 || 1;
+  const lo = Math.min(...vals) - pad, hi = Math.max(...vals) + pad;
+  const x = t => t1 === t0 ? (L + W - R) / 2 : L + (t - t0) / (t1 - t0) * (W - L - R);
+  const y = v => T + (hi - v) / (hi - lo) * (H - T - B);
+  const ticks = [0, 1, 2, 3].map(i => lo + (hi - lo) * i / 3);
+  const dateLabel = (p, anchor) => `<text x="${x(p.t)}" y="${H - 6}" text-anchor="${anchor}">${shortDate(p.day)}</text>`;
+  return `<svg class="chart" width="${W}" height="${H}" role="img" aria-label="Dot chart of the values below over time">` +
+    ticks.map(v => `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/>` +
+      `<text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${+v.toFixed(1)}</text>`).join('') +
+    (t1 === t0 ? dateLabel(pts[0], 'middle') : dateLabel(pts[0], 'start') + dateLabel(pts.at(-1), 'end')) +
+    pts.map(p => `<g class="dot" tabindex="0"><title>${shortDate(p.day)}: ${p.v}</title>` +
+      `<circle cx="${x(p.t)}" cy="${y(p.v)}" r="12" fill="transparent"/>` +
+      `<circle cx="${x(p.t)}" cy="${y(p.v)}" r="5"/></g>`).join('') +
+    '</svg>';
+}
+
+const refresh = () => Promise.all([renderMonth(), renderDay(), renderNames()]);
+const setDay = key => { selected = key; month = key.slice(0, 7); return refresh(); };
+const shiftDay = delta => {
+  const [y, m, d] = selected.split('-').map(Number);
+  setDay(iso(new Date(y, m - 1, d + delta)));
+};
+$('#prev-day').onclick = () => shiftDay(-1);
+$('#next-day').onclick = () => shiftDay(1);
+$('#today').onclick = () => setDay(today);
+
+document.addEventListener('click', async e => {
+  const cell = e.target.closest('.cell[data-day]');
+  if (!cell) return;
+  const panel = cell.closest('.tab').querySelector('.panel');
+  await setDay(cell.dataset.day);
+  // on one-column layouts the day's panel sits below the calendar, so bring it into view
+  if (matchMedia('(max-width: 900px)').matches) panel.scrollIntoView({ behavior: motion() });
+});
+const shiftMonth = delta => {
+  const [y, m] = month.split('-').map(Number);
+  month = iso(new Date(y, m - 1 + delta, 1)).slice(0, 7);
+  renderMonth();
+};
+document.querySelectorAll('[data-month]').forEach(b => b.onclick = () => shiftMonth(+b.dataset.month));
+
+$('#program-choices').addEventListener('change', e => renderPreview(e.target.value));
+
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-slot]');
+  if (!b) return;
+  await api('swaps', 'PUT', { slot: b.dataset.slot, exercise: b.dataset.to || null });
+  b.dataset.to ? swaps[b.dataset.slot] = b.dataset.to : delete swaps[b.dataset.slot];
+  refresh();
+  toast(b.dataset.to ? `Swapped to ${b.dataset.to}.` : 'Back to the program default.');
+});
+
+$('#program-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const id = new FormData(e.target).get('program');
+  await api('program', 'PUT', id ? { program: id, start: $('#program-start').value } : { program: null });
+  await loadProgram();
+  refresh();
+  toast(id ? 'Program saved. Your sessions are on the calendar.' : 'Program removed.');
+});
+
+// "Log a set" on a scheduled exercise fills the set form with it and last session's top weight
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-log]');
+  if (!b) return;
+  $('#exercise').value = b.dataset.log;
+  $('#weight').value = b.dataset.weight;
+  $('#reps').value = '';
+  $('#set-form').scrollIntoView({ behavior: motion(), block: 'center' });
+  $('#reps').focus({ preventScroll: true });
+});
+
+document.addEventListener('click', async e => {
+  const btn = e.target.closest('[data-del]');
+  if (btn) { await api(btn.dataset.del, 'DELETE'); refresh(); toast('Deleted.'); }
+});
+document.addEventListener('change', async e => {
+  const box = e.target.closest('[data-task]');
+  if (!box) return;
+  try { await api('tasks/' + box.dataset.task, 'PATCH', { done: box.checked }); }
+  finally { refresh(); }  // on failure this puts the checkbox back to its saved state
+});
+
+const addTask = (kind, title, time) => api('tasks', 'POST', { day: selected, kind, title, time });
+
+// the pending workout lands where it is dropped: the top half of an hour means :00, the bottom half :30
+let pending = null;  // title of the selected day's program workout while it has no time yet
+async function scheduleWorkout(time) {
+  const title = pending;
+  await addTask('workout', title, time);
+  refresh();
+  toast(`${title} scheduled at ${time}.`);
+}
+const timeline = $('#timeline'), dropRow = e => pending && e.target.closest('#timeline li');
+const clearDrop = () => timeline.querySelectorAll('.drop-on').forEach(li => li.classList.remove('drop-on'));
+document.addEventListener('dragstart', e => {
+  if (e.target.closest?.('.wk-chip')) e.dataTransfer.setData('text/plain', pending);  // Firefox drags only with data set
+});
+timeline.addEventListener('dragover', e => {
+  const li = dropRow(e);
+  if (!li) return;
+  e.preventDefault();
+  clearDrop(); li.classList.add('drop-on');
+});
+timeline.addEventListener('dragleave', clearDrop);
+timeline.addEventListener('drop', e => {
+  const li = dropRow(e);
+  if (!li) return;
+  e.preventDefault();
+  clearDrop();
+  const r = li.getBoundingClientRect();
+  scheduleWorkout(pad(li.dataset.hour) + (e.clientY - r.top > r.height / 2 ? ':30' : ':00'));
+});
+timeline.addEventListener('click', e => {
+  const b = e.target.closest('[data-at]');
+  if (b) scheduleWorkout(b.dataset.at);
+});
+$('#plan-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  await addTask('plan', $('#plan-title').value, $('#plan-time').value);
+  e.target.reset(); $('#plan-title').focus();
+  refresh();
+});
+$('#goal-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  await addTask('goal', $('#goal-title').value);
+  e.target.reset(); $('#goal-title').focus();
+  refresh();
+});
+
+function foodHint() {
+  const f = foods[$('#food').value], typed = +$('#grams').value, g = typed || f?.portion;
+  // the typical portion is only a placeholder, so an empty grams field logs that estimate
+  $('#grams').placeholder = f?.portion ?? '';
+  $('#grams').required = !f?.portion;
+  $('#food-hint').textContent = !f ? '' : !g ?
+    `Per 100 g: ${f.kcal} kcal, ${f.protein} g protein, ${f.carbs} g carbs, ${f.fat} g fat, ${f.fiber} g fiber.` :
+    `${typed ? '' : `A typical portion is about ${g} g (an estimate). Leave grams empty to log that, or type your own amount. `}` +
+    `${g} g is about ${fmt(f.kcal * g / 100)} kcal and ${+(f.protein * g / 100).toFixed(1)} g protein.`;
+}
+$('#grams').addEventListener('input', foodHint);
+
+let searchTimer;
+$('#food').addEventListener('input', e => {
+  foodHint();
+  if (foods[e.target.value]) return;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(async () => {
+    const list = await api('foods?q=' + encodeURIComponent(e.target.value));
+    list.forEach(x => foods[x.name] = x);
+    $('#food-list').innerHTML = list.map(x => `<option value="${esc(x.name)}">`).join('');
+    foodHint();
+  }, 150);
+});
+
+$('#meal-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = $('#food').value, f = foods[name];
+  if (!f) {
+    toast(`"${name}" isn't in the food database. Pick one from the list, or add it below.`, true);
+    $('#new-food').open = true;
+    $('#food-form [name=name]').value = name;
+    $('#food-form [name=kcal]').focus();
+    return;
+  }
+  await api('meals', 'POST', { day: selected, food_id: f.id, grams: +$('#grams').value || f.portion });
+  e.target.reset(); foodHint();
+  $('#food').focus();
+  refresh();
+});
+
+$('#activity-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  await api('activities', 'POST', { day: selected, title: $('#title').value, kcal: +$('#act-kcal').value || 0 });
+  e.target.reset();
+  refresh();
+});
+
+$('#set-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  await api('sets', 'POST', { day: selected, exercise: $('#exercise').value, weight: +$('#weight').value || 0, reps: +$('#reps').value });
+  $('#reps').select();  // keep exercise/weight filled: the next set is usually the same
+  refresh();
+});
+
+$('#measure-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  await api('measurements', 'POST', { day: selected, kind: $('#kind').value, value: +$('#value').value });
+  $('#value').value = '';
+  refresh();
+  loadProfile();  // a new weigh-in may mean the goal needs recalculating
+});
+
+const GOAL_TEXT = {
+  lose: 'To lose weight, that is 20% below your maintenance',
+  recomp: 'To lose fat while building muscle, that is 10% below your maintenance',
+  gain: 'To build muscle, that is 10% above your maintenance',
+  maintain: 'To stay where you are, that is your maintenance',
+};
+async function loadProfile() {
+  const [p, weighIns] = await Promise.all([api('profile'), api('history/measurement?name=' + encodeURIComponent('Weight (kg)'))]);
+  const f = $('#profile-form'), latest = weighIns[0];
+  if (p.goal) for (const k of ['goal', 'sex', 'age', 'height', 'weight', 'activity']) f.elements[k].value = p[k];
+  else if (latest) f.elements.weight.value = latest.value;  // first visit: start from the last weigh-in
+  $('#goal-summary').innerHTML = !p.goal ?
+    '<p class="empty">Tell the app what you want to achieve and a few details about you. It then estimates your BMR and sets a daily calorie goal.</p>' :
+    `<p class="goal-big">${fmt(p.goal_kcal)} kcal a day</p>` +
+    `<p class="goal-text">${GOAL_TEXT[p.goal]} of ${fmt(p.tdee)} kcal. Your BMR is ${fmt(p.bmr)} kcal; your activity level brings it to maintenance. ` +
+    'The goal already includes your usual training, so logged activities do not raise it.</p>' +
+    (p.at_minimum ? `<p class="goal-text over">Raised to ${fmt(p.goal_kcal)} kcal, the usual minimum without medical supervision. Losing weight will be slower.</p>` : '') +
+    (latest && latest.value !== p.weight ? `<p class="goal-text muted">Your latest weigh-in is ${latest.value} kg, but the goal uses ${p.weight} kg. Update your weight below to recalculate.</p>` : '');
+  $('#goal-details').open = !p.goal;
+  $('#goal-details summary').textContent = p.goal ? 'Change your goal or details' : 'Your goal and details';
+}
+
+$('#profile-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  await api('profile', 'PUT', Object.fromEntries(new FormData(e.target)));
+  await loadProfile();
+  refresh();
+  toast('Goal saved. Your BMR and calorie goal are updated.');
+});
+
+$('#food-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const body = Object.fromEntries([...new FormData(e.target)].filter(([, v]) => v !== ''));
+  const { id, portion } = await api('foods', 'POST', body);
+  foods[body.name] = { id, portion, protein: 0, carbs: 0, fat: 0, fiber: 0, ...body };
+  e.target.reset();
+  $('#new-food').open = false;
+  // hand the new food straight to the meal form so it can be logged right away
+  $('#food').value = body.name; foodHint();
+  $('#grams').focus();
+  toast(`Saved ${body.name} to the food database.`);
+});
+
+showTab();
+loadProgram().then(refresh);
+loadProfile();
+</script>
+</body>
+</html>
