@@ -227,8 +227,13 @@
   .balance > span { color: var(--muted); font-size: 13px; }
   .balance b { font-weight: 600; text-align: right; }
   .track { height: 12px; border-radius: 6px; background: var(--paper); display: flex; overflow: hidden; }
-  .track i { height: 100%; transition: width .3s ease; }
-  #eat-bar { background: var(--accent); } #base-bar { background: var(--bar); } #act-bar { background: var(--muted); }
+  .track i { height: 100%; transition: width .3s ease; background: var(--c); }
+  .track i + i:not(#goal-mark) { box-shadow: inset 1px 0 0 var(--surface); }  /* a hairline between neighbours */
+  /* food that exercise burned off: striped in that exercise's color */
+  .track i.off { background: repeating-linear-gradient(135deg, var(--c) 0 3px, transparent 3px 6px); }
+  .bal-legend { list-style: none; padding: 0; margin: 14px 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--muted); }
+  .bal-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; background: var(--c); }
+  .bal-legend b { color: var(--ink); font-weight: 600; }
   .net { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; margin: 16px 0 0; }
   .net strong { font-family: var(--display); font-size: 28px; font-weight: 700; }
   .macros { display: flex; flex-wrap: wrap; gap: 8px 32px; margin: 18px 0 0; }
@@ -452,7 +457,8 @@
 
       <section aria-labelledby="act-h">
         <h2 id="act-h">Activities</h2>
-        <p class="muted intro">Calories burned here count toward your energy balance in Myself.</p>
+        <p class="muted intro">Give the time, the distance, or both, and the calories are estimated from your weight; type them in if you know them.
+          They are taken off what you ate in Myself. Logged sets count as a gym session on their own, so no need to add one here.</p>
         <form id="activity-form" class="add">
           <label class="field">Activity
             <input id="title" list="activity-list" placeholder="e.g. Gym, Running, Walking" required>
@@ -460,8 +466,14 @@
           <datalist id="activity-list">
             <option>Gym</option><option>Running</option><option>Walking</option><option>Cycling</option><option>Swimming</option>
           </datalist>
+          <label class="field sm">Minutes
+            <input id="act-min" type="number" min="0" max="1440" step="any">
+          </label>
+          <label class="field sm">km
+            <input id="act-km" type="number" min="0" step="any">
+          </label>
           <label class="field sm">kcal burned
-            <input id="act-kcal" type="number" min="0" step="any" placeholder="optional">
+            <input id="act-kcal" type="number" min="0" step="any" placeholder="estimate">
           </label>
           <button>Add activity</button>
         </form>
@@ -484,9 +496,10 @@
       <section aria-labelledby="bal-h">
         <h2 id="bal-h">Energy balance</h2>
         <div class="balance">
-          <span>Eaten</span><div class="track eat"><i id="eat-bar"></i><i id="goal-mark" title="Your daily goal" hidden></i></div><b><span id="eaten"></span> kcal</b>
-          <span>Burned</span><div class="track"><i id="base-bar"></i><i id="act-bar"></i></div><b><span id="burned"></span> kcal</b>
+          <span>Eaten</span><div class="track eat" id="eat-track"></div><b><span id="eaten"></span> kcal</b>
+          <span>Burned</span><div class="track" id="burn-track"></div><b><span id="burned"></span> kcal</b>
         </div>
+        <ul id="bal-legend" class="bal-legend"></ul>
         <p class="net"><strong id="net"></strong><span id="net-note" class="muted"></span></p>
         <p id="goal-line" class="goal-line" hidden></p>
         <dl id="macros" class="macros"></dl>
@@ -520,17 +533,17 @@
               <label class="field sm">Weight, kg <input name="weight" type="number" min="30" max="300" step="any" required></label>
             </div>
             <div class="add">
-              <label class="field">How active are you, including work and training?
-                <select name="activity" required>
+              <label class="field">How active is your day, not counting workouts, runs or walks?
+                <select name="activity" required aria-describedby="activity-hint">
                   <option value="">Choose</option>
-                  <option value="sedentary">Mostly sitting, little or no exercise</option>
-                  <option value="light">Light: exercise 1 to 3 days a week</option>
-                  <option value="moderate">Moderate: exercise 3 to 5 days a week</option>
-                  <option value="active">Active: hard exercise 6 to 7 days a week</option>
-                  <option value="very_active">Very active: physical job plus training</option>
+                  <option value="sedentary">Mostly sitting: desk job or studying</option>
+                  <option value="mixed">Some standing and walking around, e.g. teaching or lab work</option>
+                  <option value="on_feet">On your feet most of the day, e.g. shop, nursing or waiting tables</option>
+                  <option value="physical">Heavy physical work, e.g. construction or farming</option>
                 </select>
               </label>
             </div>
+            <p id="activity-hint" class="muted">Leave training out: what you log in Sports is added on top each day.</p>
             <p class="muted">Sex, age, height and weight go into the Mifflin-St Jeor formula for your BMR, the calories your body uses at rest.</p>
             <div class="add"><button>Calculate my goal</button></div>
           </form>
@@ -861,31 +874,48 @@ async function renderDay() {
     '</div></div>'
   ).join('') || '<p class="empty">No sets yet. Add one set at a time; the exercise and weight stay filled in for the next set.</p>';
   renderWorkout(d);
-  $('#activities').innerHTML = d.activities.map(a =>
-    `<li><span>${esc(a.title)}</span><span class="end">${a.kcal ? `<span class="muted">${fmt(a.kcal)} kcal burned</span>` : ''}` +
-    `${del('activities', a.id, a.title)}</span></li>`
-  ).join('') || '<li class="empty">No activities yet. Log a run, a walk or a gym session.</li>';
+  const n = d.sets.length, about = a => [a.minutes && `${+a.minutes} min`, a.km && `${+a.km} km`].filter(Boolean).join(', ');
+  $('#activities').innerHTML = (d.gym_burn ? `<li><span>Gym session <span class="muted">from ${n} logged set${n === 1 ? '' : 's'}</span></span>` +
+    `<span class="end"><span class="muted">${fmt(d.gym_burn)} kcal burned</span></span></li>` : '') + d.activities.map(a =>
+    `<li><span>${esc(a.title)}${about(a) ? ` <span class="muted">${about(a)}</span>` : ''}</span>` +
+    `<span class="end">${a.kcal ? `<span class="muted">${fmt(a.kcal)} kcal burned</span>` : ''}${del('activities', a.id, a.title)}</span></li>`
+  ).join('') || '<li class="empty">No activities yet. Log a run, a walk or a bike ride.</li>';
 
-  // myself
-  const eaten = d.totals.kcal, burned = d.base_burn + d.activity_burn, goal = d.goal_kcal;
-  const max = Math.max(eaten, burned, goal || 0) || 1;
-  $('#goal-mark').hidden = $('#goal-line').hidden = !goal;
+  // myself: each food in its own color on the Eaten bar; exercise is taken off its end, striped, each activity in its
+  // own color on both bars. Foods get colors in the order eaten, so the day's foods differ from each other.
+  const FOOD_COLORS = ['#e9b824', '#e4572e', '#17a2a8', '#9c6b4e', '#9bc53d', '#6c7a89', '#8e4585', '#5aa9e6'];
+  const byFood = {};  // the same food logged twice is one piece
+  d.meals.forEach(m => (byFood[m.name] ??= { name: m.name, kcal: 0, c: FOOD_COLORS[Object.keys(byFood).length % FOOD_COLORS.length] }).kcal += m.kcal);
+  const COLORS = ['var(--blue)', 'var(--green)', 'var(--brand-a)', 'var(--brand-b)'];
+  const exercise = d.activities.filter(a => a.kcal).map((a, i) => ({ name: a.title, kcal: a.kcal, c: COLORS[i % COLORS.length] }));
+  if (d.gym_burn) exercise.push({ name: 'Gym session', kcal: d.gym_burn, c: 'var(--orange)' });
+  const food = d.totals.kcal, moved = d.activity_burn + d.gym_burn, eaten = food - moved;
+  const burned = d.base_burn + moved, goal = d.goal_kcal, max = Math.max(food, burned, goal || 0) || 1;
+  const seg = (kcal, c, cls = '', name = '') =>
+    kcal > 0 ? `<i class="${cls}" style="width:${kcal / max * 100}%;--c:${c}" title="${esc(name)}: ${fmt(kcal)} kcal"></i>` : '';
+  let kept = food;  // exercise covers the food bar from its right end
+  const offs = exercise.map(x => { const k = Math.min(x.kcal, kept); kept -= k; return seg(k, x.c, 'off', `${x.name} burned off`); }).reverse();
+  let room = kept;  // foods fill what exercise did not burn off, in the order eaten
+  const eatenSegs = Object.values(byFood).map(f => { const k = Math.min(f.kcal, room); room -= k; return seg(k, f.c, '', f.name); });
+  $('#eat-track').innerHTML = eatenSegs.join('') + offs.join('') +
+    (goal ? `<i id="goal-mark" style="left:${goal / max * 100}%" title="Your daily goal"></i>` : '');
+  $('#burn-track').innerHTML = seg(d.base_burn, 'var(--bar)', '', 'Base burn') + exercise.map(x => seg(x.kcal, x.c, '', x.name)).join('');
+  $('#bal-legend').innerHTML = [...Object.values(byFood).map(f => [f.name, f.kcal, f.c]), ['Base burn', d.base_burn, 'var(--bar)'], ...exercise.map(x => [x.name, x.kcal, x.c])]
+    .filter(([, k]) => k).map(([name, k, c]) => `<li><i style="--c:${c}"></i>${esc(name)} <b>${fmt(k)}</b></li>`).join('') +
+    (moved && food ? '<li>Striped: food your exercise burned off</li>' : '');
+  $('#goal-line').hidden = !goal;
   if (goal) {
-    $('#goal-mark').style.left = goal / max * 100 + '%';
     $('#goal-line').innerHTML = eaten <= goal ?
       `<strong>${fmt(goal - eaten)} kcal left</strong> <span class="muted">of your ${fmt(goal)} kcal goal for today.</span>` :
       `<strong class="over">${fmt(eaten - goal)} kcal over</strong> <span class="muted">your ${fmt(goal)} kcal goal for today.</span>`;
   }
-  $('#eat-bar').style.width = eaten / max * 100 + '%';
-  $('#base-bar').style.width = d.base_burn / max * 100 + '%';
-  $('#act-bar').style.width = d.activity_burn / max * 100 + '%';
   $('#eaten').textContent = fmt(eaten);
   $('#burned').textContent = fmt(burned);
   // with no food logged the balance is just "minus base burn", which reads as a false win
   $('#net').textContent = d.meals.length ? balance(d.net) : 'Nothing eaten yet';
   $('#net').className = !d.meals.length ? '' : d.net > 0 ? 'over' : d.net < 0 ? 'under' : '';
   $('#net-note').textContent = d.base_burn ?
-    `Burned is ${fmt(d.base_burn)} base plus ${fmt(d.activity_burn)} from activities.` :
+    `Burned is ${fmt(d.base_burn)} base plus ${fmt(moved)} from exercise. Eaten is ${fmt(food)} from food minus that exercise.` :
     'Fill in "Your goal" below to estimate what your body uses at rest.';
   $('#macros').innerHTML = [['Protein', 'protein'], ['Carbs', 'carbs'], ['Fat', 'fat'], ['Fiber', 'fiber']]
     .map(([label, k]) => `<div><dt>${label}</dt><dd>${d.totals[k]} g</dd></div>`).join('');
@@ -1230,9 +1260,11 @@ $('#meal-form').addEventListener('submit', async e => {
 
 $('#activity-form').addEventListener('submit', async e => {
   e.preventDefault();
-  await api('activities', 'POST', { day: selected, title: $('#title').value, kcal: +$('#act-kcal').value || 0 });
+  const title = $('#title').value, r = await api('activities', 'POST', { day: selected, title,
+    minutes: +$('#act-min').value || 0, km: +$('#act-km').value || 0, kcal: +$('#act-kcal').value || 0 });
   e.target.reset();
   refresh();
+  toast(r.kcal ? `${title}: ${fmt(r.kcal)} kcal burned.` : `${title} logged. Add how long it took to estimate the calories.`);
 });
 
 $('#set-form').addEventListener('submit', async e => {
@@ -1265,7 +1297,7 @@ async function loadProfile() {
     '<p class="empty">Tell the app what you want to achieve and a few details about you. It then estimates your BMR and sets a daily calorie goal.</p>' :
     `<p class="goal-big">${fmt(p.goal_kcal)} kcal a day</p>` +
     `<p class="goal-text">${GOAL_TEXT[p.goal]} of ${fmt(p.tdee)} kcal. Your BMR is ${fmt(p.bmr)} kcal; your activity level brings it to maintenance. ` +
-    'The goal already includes your usual training, so logged activities do not raise it.</p>' +
+    'That is without training: exercise you log in Sports is taken off what you eat, so it leaves room for more.</p>' +
     (p.at_minimum ? `<p class="goal-text over">Raised to ${fmt(p.goal_kcal)} kcal, the usual minimum without medical supervision. Losing weight will be slower.</p>` : '') +
     (latest && latest.value !== p.weight ? `<p class="goal-text muted">Your latest weigh-in is ${latest.value} kg, but the goal uses ${p.weight} kg. Update your weight below to recalculate.</p>` : '');
   $('#goal-details').open = !p.goal;

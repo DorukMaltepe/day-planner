@@ -18,7 +18,7 @@
 Plan your day, log what you ate and how you trained, and see each day's net calorie balance and your progress over time. Day Planner is a single Flask app backed by one SQLite file. It runs on your own machine or VM and needs no account or third-party service.
 
 ```
-net = eaten − base burn (BMR) − kcal burned by activities
+net = eaten − base burn (BMR) − kcal burned by activities and gym sessions
 ```
 
 ## Features
@@ -37,9 +37,10 @@ net = eaten − base burn (BMR) − kcal burned by activities
 | | |
 |---|---|
 | **Food log** | Search about 22,500 foods with kcal, protein, carbs, fat and fiber per 100 g. Portion sizes are guessed from the food name, and you can add your own foods. |
-| **Energy balance** | Your BMR (Mifflin-St Jeor), maintenance calories (TDEE) and a daily goal for losing, recomposition, maintaining or gaining. |
+| **Energy balance** | Your BMR (Mifflin-St Jeor), maintenance calories (TDEE) from your daily life without training, and a daily goal for losing, recomposition, maintaining or gaining. Exercise is taken off what you ate, and the bars show in color how much each food total, activity and gym session contributed. |
 | **Workout programs** | Built-in programs (machine PPL 3×/week, classic PPL 6×/week, …). Swap an exercise for an equivalent one. An amber dot marks days whose workout has no time yet: drag it onto the schedule, and it lasts as long as its sets and rests take. |
-| **Set logging** | Log sets (exercise, kg, reps), prefilled from your last session. Tap a scheduled workout to see each exercise's sets × reps and the weight you used last time. |
+| **Activities** | Log a walk, run, ride, swim and so on with its time and/or distance; the calories are estimated from your weight with MET values from the Compendium of Physical Activities (by speed for walking, running and cycling), or type them in yourself. |
+| **Set logging** | Log sets (exercise, kg, reps), prefilled from your last session. Tap a scheduled workout to see each exercise's sets × reps and the weight you used last time. The day's sets count as a gym session: its calories are estimated from the set count (with rest by rep range) and the weight you lifted. |
 | **Exercise progress** | For each session: sets, total reps, top weight, volume (kg × reps) and estimated 1-rep max (Epley), each with the change since the last session, so you can track progressive overload. |
 | **Body measurements** | Track weight, waist, body fat and more, with the change since the previous entry. |
 

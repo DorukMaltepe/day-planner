@@ -11,10 +11,50 @@ from flask import Flask, abort, g, jsonify, request
 HERE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.environ.get("DB_PATH", os.path.join(HERE, "data", "app.db"))
 NUTRIENTS = ("kcal", "protein", "carbs", "fat", "fiber")  # per 100 g in the foods table
-# activity multipliers turn BMR into maintenance calories (TDEE); goals adjust maintenance by a share
-ACTIVITY = {"sedentary": 1.2, "light": 1.375, "moderate": 1.55, "active": 1.725, "very_active": 1.9}
+# activity multipliers turn BMR into maintenance calories (TDEE); goals adjust maintenance by a share.
+# They cover daily life only: logged activities and sets are added on top, so training must not be in them too.
+ACTIVITY = {"sedentary": 1.2, "mixed": 1.35, "on_feet": 1.5, "physical": 1.7}
 GOALS = {"lose": -0.20, "recomp": -0.10, "maintain": 0.0, "gain": 0.10}
 MIN_KCAL = {"female": 1200, "male": 1500}  # common safe minimum without medical supervision
+
+# METs (1 = resting) from the Compendium of Physical Activities, matched on the activity's name (English and German).
+# Walking, running and cycling go by speed: (usual km/h, [(km/h, MET), ...]), interpolated between the points;
+# the usual speed fills in when only the time or only the distance is known.
+SPORTS = [(re.compile(p), met) for p, met in [
+    (r"hik|wander|trek", 6.0),
+    (r"walk|gehen|spazier", (5, [(2, 2.0), (3.2, 2.8), (4, 3.0), (4.8, 3.5), (5.6, 4.3), (6.4, 5.0), (7.2, 7.0), (8, 8.3)])),
+    (r"\brun|jog|lauf|sprint", (10, [(6.4, 6.0), (8, 8.3), (9.7, 9.8), (11.3, 11.0), (12.9, 11.8), (14.5, 12.8), (16.1, 14.5), (19.3, 19.0)])),
+    (r"cycl|bike|biking|\brad|fahrrad", (18, [(12, 4.0), (17.5, 6.8), (20.5, 8.0), (24, 10.0), (28, 12.0), (32, 15.8)])),
+    (r"swim|schwimm", 6.0),
+    (r"\brow|ruder", 7.0),
+    (r"hiit|circuit|crossfit|zirkel", 8.0),
+    (r"box|kick|martial|karate|judo", 7.8),
+    (r"football|soccer|fu(ß|ss)ball|basket|handball", 7.0),
+    (r"tennis|squash|badminton|padel", 7.3),
+    (r"climb|boulder|kletter", 8.0),
+    (r"danc|tanz|zumba", 5.0),
+    (r"yoga|pilates|stretch|dehn", 2.5),
+    (r"elliptical|crosstrainer|stair|stepper", 5.0),
+    (r"gym|weight|kraft|lift|fitness", 3.5),
+]]
+MODERATE = 4.0  # anything not listed
+# A gym session from its sets: each set plus its rest takes 4, 3 or 2.5 minutes by rep range (as workoutMinutes in
+# index.html) at resistance training's MET 3.5, plus the lifted work (kg x reps x 0.5 m x g) at 25% muscle efficiency.
+SET_KCAL = "((CASE WHEN reps <= 6 THEN 4 WHEN reps <= 10 THEN 3 ELSE 2.5 END) / 60.0 * 2.5 * :bw + weight * reps * 0.0047)"
+
+
+def burn(title, minutes, km, weight):
+    """Active kcal: (MET - 1) x kg x hours. The 1 is left out because base burn already counts resting."""
+    met = next((m for p, m in SPORTS if p.search(title.lower())), MODERATE)
+    if isinstance(met, tuple):
+        usual, points = met
+        speed = km / minutes * 60 if km and minutes else usual
+        minutes = minutes or km / usual * 60
+        met = points[0][1] if speed < points[0][0] else points[-1][1]  # flat beyond the ends
+        for (x0, y0), (x1, y1) in zip(points, points[1:]):
+            if x0 <= speed < x1:
+                met = y0 + (y1 - y0) * (speed - x0) / (x1 - x0)
+    return round((met - 1) * weight * minutes / 60)
 
 # Typical single portion in grams, guessed from the food name (English and German).
 # Each rule is (pattern, grams, (min_kcal, max_kcal)): the first match wins. The kcal range tells dry pasta
@@ -106,7 +146,9 @@ CREATE TABLE IF NOT EXISTS activities (
   id INTEGER PRIMARY KEY,
   day TEXT NOT NULL,
   title TEXT NOT NULL,
-  kcal REAL NOT NULL DEFAULT 0
+  kcal REAL NOT NULL DEFAULT 0,  -- as entered, or estimated from the time and distance when saved
+  minutes REAL,
+  km REAL
 );
 CREATE INDEX IF NOT EXISTS activities_day ON activities(day);
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value REAL NOT NULL);
@@ -172,12 +214,15 @@ def init_db():
     conn = sqlite3.connect(DB_PATH)
     with conn:
         conn.executescript(SCHEMA)
-        # older databases lack these task columns
-        cols = {r[1] for r in conn.execute("PRAGMA table_info(tasks)")}
-        for col, decl in [("type_id", "INTEGER REFERENCES event_types(id) ON DELETE SET NULL"),
-                          ("link", "TEXT"), ("location", "TEXT"), ("minutes", "INTEGER"), ("notes", "TEXT")]:
-            if col not in cols:
-                conn.execute(f"ALTER TABLE tasks ADD COLUMN {col} {decl}")
+        # older databases lack these columns
+        for table, col, decl in [("tasks", "type_id", "INTEGER REFERENCES event_types(id) ON DELETE SET NULL"),
+                                 ("tasks", "link", "TEXT"), ("tasks", "location", "TEXT"), ("tasks", "minutes", "INTEGER"),
+                                 ("tasks", "notes", "TEXT"), ("activities", "minutes", "REAL"), ("activities", "km", "REAL")]:
+            if col not in {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
+        # the old levels counted exercise days, which are now logged; a physical job stays one
+        conn.execute("UPDATE profile SET activity = CASE activity WHEN 'very_active' THEN 'physical' ELSE 'sedentary' END "
+                     "WHERE activity IN ('light', 'moderate', 'active', 'very_active')")
         # default types only into an empty table, so ones the user deleted stay deleted (unless all are)
         if not conn.execute("SELECT 1 FROM event_types").fetchone():
             conn.executemany("INSERT INTO event_types (name, color, has_link, has_location) VALUES (?, ?, ?, ?)", [
@@ -257,6 +302,11 @@ def base_burn():
     return row[0] if row else 0
 
 
+def body_weight():
+    row = db().execute("SELECT weight FROM profile").fetchone()
+    return row[0] if row else 70  # an average adult until the profile gives the real weight
+
+
 def targets(p):
     """BMR (Mifflin-St Jeor), maintenance and the daily calorie goal for a profile."""
     bmr = 10 * p["weight"] + 6.25 * p["height"] - 5 * p["age"] + (5 if p["sex"] == "male" else -161)
@@ -309,7 +359,7 @@ def get_day(day):
         f"SELECT m.id, m.grams, f.name, {scaled} FROM meals m JOIN foods f ON f.id = m.food_id "
         "WHERE m.day = ? ORDER BY m.id", (day,))]
     activities = [dict(r) for r in db().execute(
-        "SELECT id, title, kcal FROM activities WHERE day = ? ORDER BY id", (day,))]
+        "SELECT id, title, kcal, minutes, km FROM activities WHERE day = ? ORDER BY id", (day,))]
     sets = [dict(r) for r in db().execute(
         "SELECT id, exercise, weight, reps FROM sets WHERE day = ? ORDER BY id", (day,))]
     measurements = [dict(r) for r in db().execute(
@@ -321,9 +371,11 @@ def get_day(day):
     totals = {k: round(sum(m[k] for m in meals), 1) for k in NUTRIENTS}
     base = base_burn()
     burned = sum(a["kcal"] for a in activities)
+    gym = round(db().execute(f"SELECT COALESCE(SUM({SET_KCAL}), 0) FROM sets WHERE day = :day",
+                             {"day": day, "bw": body_weight()}).fetchone()[0])
     p = profile()
     return jsonify(meals=meals, activities=activities, sets=sets, measurements=measurements, tasks=tasks, totals=totals,
-                   base_burn=base, activity_burn=burned, net=round(totals["kcal"] - base - burned),
+                   base_burn=base, activity_burn=burned, gym_burn=gym, net=round(totals["kcal"] - base - burned - gym),
                    goal_kcal=p and p["goal_kcal"])
 
 
@@ -331,19 +383,19 @@ def get_day(day):
 def get_month(month):
     valid_day(month + "-01")
     base = base_burn()
-    rows = db().execute("""
+    rows = db().execute(f"""
         SELECT day, SUM(eaten) AS eaten, SUM(burned) AS burned, SUM(is_activity) AS done,
                SUM(is_task) AS tasks, SUM(task_done) AS tasks_done, SUM(is_set) AS sets, SUM(is_workout) AS workouts FROM (
           SELECT m.day, f.kcal * m.grams / 100 AS eaten, 0 AS burned, 0 AS is_activity, 0 AS is_task, 0 AS task_done,
                  0 AS is_set, 0 AS is_workout
-            FROM meals m JOIN foods f ON f.id = m.food_id WHERE m.day LIKE ?
+            FROM meals m JOIN foods f ON f.id = m.food_id WHERE m.day LIKE :m
           UNION ALL
-          SELECT day, 0, kcal, 1, 0, 0, 0, 0 FROM activities WHERE day LIKE ?
+          SELECT day, 0, kcal, 1, 0, 0, 0, 0 FROM activities WHERE day LIKE :m
           UNION ALL
-          SELECT day, 0, 0, 0, 1, done, 0, kind = 'workout' FROM tasks WHERE day LIKE ?
+          SELECT day, 0, 0, 0, 1, done, 0, kind = 'workout' FROM tasks WHERE day LIKE :m
           UNION ALL
-          SELECT day, 0, 0, 0, 0, 0, 1, 0 FROM sets WHERE day LIKE ?
-        ) GROUP BY day""", (month + "-%",) * 4)
+          SELECT day, 0, {SET_KCAL}, 0, 0, 0, 1, 0 FROM sets WHERE day LIKE :m
+        ) GROUP BY day""", {"m": month + "-%", "bw": body_weight()})
     colors = dict(db().execute("SELECT t.day, GROUP_CONCAT(DISTINCT e.color) FROM tasks t "
                                "JOIN event_types e ON e.id = t.type_id WHERE t.day LIKE ? GROUP BY t.day", (month + "-%",)))
     return jsonify({r["day"]: {"eaten": round(r["eaten"]), "done": r["done"],
@@ -370,11 +422,16 @@ def add_meal():
 
 @app.post("/api/activities")
 def add_activity():
+    """Without kcal, they are estimated from the time and distance (either one is enough for walking, running and cycling)."""
     d = payload()
+    day, title, minutes, km = valid_day(d.get("day")), text(d, "title"), num(d, "minutes", 0), num(d, "km", 0)
+    if minutes > 1440:
+        abort(400, "minutes must be at most 1440")
+    kcal = num(d, "kcal", 0) or burn(title, minutes, km, body_weight())
     with db() as conn:
-        cur = conn.execute("INSERT INTO activities (day, title, kcal) VALUES (?, ?, ?)",
-                           (valid_day(d.get("day")), text(d, "title"), num(d, "kcal", 0)))
-    return jsonify(id=cur.lastrowid), 201
+        cur = conn.execute("INSERT INTO activities (day, title, kcal, minutes, km) VALUES (?, ?, ?, ?, ?)",
+                           (day, title, kcal, minutes or None, km or None))
+    return jsonify(id=cur.lastrowid, kcal=kcal), 201
 
 
 @app.post("/api/sets")

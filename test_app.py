@@ -185,13 +185,21 @@ assert c.get("/api/swaps").get_json() == {}
 
 # profile -> BMR (Mifflin-St Jeor) and calorie goal; saving it also sets base burn
 assert c.get("/api/profile").get_json() == {}
-me = {"sex": "male", "age": 30, "height": 180, "weight": 80, "activity": "moderate", "goal": "lose"}
+me = {"sex": "male", "age": 30, "height": 180, "weight": 80, "activity": "on_feet", "goal": "lose"}
 r = c.put("/api/profile", json=me).get_json()
-# 10*80 + 6.25*180 - 5*30 + 5 = 1780; * 1.55 = 2759; * 0.8 = 2207.2 -> 2210
-assert (r["bmr"], r["tdee"], r["goal_kcal"], r["at_minimum"]) == (1780, 2759, 2210, False), r
+# 10*80 + 6.25*180 - 5*30 + 5 = 1780; * 1.5 = 2670; * 0.8 = 2136 -> 2140
+assert (r["bmr"], r["tdee"], r["goal_kcal"], r["at_minimum"]) == (1780, 2670, 2140, False), r
 day = c.get("/api/day/2026-10-15").get_json()
-assert day["base_burn"] == 1780 and day["goal_kcal"] == 2210
-assert c.put("/api/profile", json=me | {"goal": "gain"}).get_json()["goal_kcal"] == 3030  # 2759 * 1.1
+assert day["base_burn"] == 1780 and day["goal_kcal"] == 2140
+assert c.put("/api/profile", json=me | {"goal": "gain"}).get_json()["goal_kcal"] == 2940  # 2670 * 1.1
+assert c.put("/api/profile", json=me | {"activity": "moderate"}).status_code == 400  # old levels are gone
+# a profile saved with an old level that counted training moves to the new levels on start
+app_module = __import__("app")
+for old, new in [("moderate", "sedentary"), ("very_active", "physical")]:
+    with app_module.sqlite3.connect(os.environ["DB_PATH"]) as conn:
+        conn.execute("UPDATE profile SET activity = ?", (old,))
+    app_module.init_db()
+    assert c.get("/api/profile").get_json()["activity"] == new
 # 10*45 + 6.25*150 - 5*60 - 161 = 926.5; * 1.2 * 0.8 = 889 -> raised to the 1200 kcal minimum
 small = {"sex": "female", "age": 60, "height": 150, "weight": 45, "activity": "sedentary", "goal": "lose"}
 r = c.put("/api/profile", json=small).get_json()
@@ -199,5 +207,25 @@ assert (r["bmr"], r["goal_kcal"], r["at_minimum"]) == (926, 1200, True), r
 assert c.put("/api/profile", json=me | {"age": 5}).status_code == 400
 assert c.put("/api/profile", json=me | {"goal": "shred"}).status_code == 400
 assert c.get("/api/profile").get_json()["sex"] == "female"  # rejected saves changed nothing
+
+# activities without kcal are estimated from time and distance: (MET - 1) x 45 kg (the profile above) x hours
+def activity(**body):
+    r = c.post("/api/activities", json={"day": "2026-10-21", **body})
+    assert r.status_code == 201, r.get_json()
+    return r.get_json()["kcal"]
+assert activity(title="Walking", minutes=45, km=3.5) == 82  # 4.67 km/h -> MET 3.42
+assert activity(title="Morning run", km=5) == 203           # usual 10 km/h, so 30 min at MET 10.03
+assert activity(title="Schwimmen", minutes=40) == 150       # MET 6
+assert activity(title="Swimming", km=1) == 0                # no speed table for swimming: the time is needed
+assert activity(title="Walking", minutes=60, kcal=200) == 200  # an entered value wins
+assert c.post("/api/activities", json={"day": "2026-10-21", "title": "Walking", "minutes": 2000}).status_code == 400
+# a gym session is estimated from its sets: time by rep range, plus the lifted work
+assert c.post("/api/sets", json={"day": "2026-10-21", "exercise": "Deadlift", "weight": 100, "reps": 5}).status_code == 201
+assert c.post("/api/sets", json={"day": "2026-10-21", "exercise": "Pull-up", "reps": 12}).status_code == 201
+day = c.get("/api/day/2026-10-21").get_json()
+assert (day["activity_burn"], day["gym_burn"]) == (635, 15), day  # 9.85 + 4.69 kcal for the two sets
+assert day["activities"][0]["minutes"] == 45 and day["activities"][0]["km"] == 3.5
+assert day["net"] == -926 - 635 - 15
+assert c.get("/api/month/2026-10").get_json()["2026-10-21"]["net"] == -1576
 
 print("all tests passed")
